@@ -67,10 +67,14 @@ public static class DatabaseSeeder
 
     private static Campaign BuildCampaign(SeedCampaign seed, DateTimeOffset now, Random rng)
     {
-        var start = seed.Status is CampaignStatus.Scheduled
-            ? now.AddSeconds(90)
-            : new DateTimeOffset(now.UtcDateTime.Date.AddDays(-seed.DaysAgo).AddHours(10 + rng.Next(0, 5)), TimeSpan.Zero);
-        var created = start.AddDays(-2).AddHours(-rng.Next(1, 30));
+        // Unsent campaigns carry a start that has already passed, so scheduling one begins at once.
+        var start = seed.Status switch
+        {
+            CampaignStatus.Scheduled => now.AddSeconds(90),
+            CampaignStatus.Draft or CampaignStatus.InReview or CampaignStatus.Approved => now.AddHours(-1),
+            _ => new DateTimeOffset(now.UtcDateTime.Date.AddDays(-seed.DaysAgo).AddHours(10 + rng.Next(0, 5)), TimeSpan.Zero),
+        };
+        var created = now.AddDays(-seed.DaysAgo - 2).AddHours(-rng.Next(1, 30));
         var campaign = new Campaign
         {
             Id = Guid.NewGuid(),
