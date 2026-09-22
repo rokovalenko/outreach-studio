@@ -1,0 +1,137 @@
+@using System.Globalization
+
+@* The estimate, read only. The page owns the debounce and hands the result down. *@
+
+<MudStack Spacing="3">
+    <MudPaper Outlined="true" Class="pa-4">
+        @if (Estimate is null)
+        {
+            <MudText Typo="Typo.body1">@EmptyText</MudText>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5">
+                @Estimate.Matched.ToString("N0", CultureInfo.InvariantCulture)
+                of @Estimate.Total.ToString("N0", CultureInfo.InvariantCulture) users
+            </MudText>
+            <MudProgressLinear Value="@(Estimate.Share * 100)" Color="@(OverBlastRadius ? Color.Warning : Color.Primary)"
+                               Size="Size.Large" Rounded="true" Class="my-3" />
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.body2">@Estimate.Share.ToString("P1", CultureInfo.InvariantCulture) of the base</MudText>
+                <MudSpacer />
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                         Icon="@(InBrowser ? Icons.Material.Filled.Devices : Icons.Material.Filled.Dns)">
+                    @Where, @Estimate.Total.ToString("N0", CultureInfo.InvariantCulture) users in @ElapsedMs ms
+                </MudChip>
+                @if (DownloadMs is { } downloadMs)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.CloudDownload">
+                        audience downloaded in @downloadMs ms@(DownloadBytes is { } bytes ? $", {Megabytes(bytes)} MB" : "")
+                    </MudChip>
+                }
+            </MudStack>
+        }
+    </MudPaper>
+
+    @if (OverBlastRadius)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true">
+            This rule reaches more than @BlastRadiusShare.ToString("P0", CultureInfo.InvariantCulture) of the base, so two approvals will be required before it can be sent.
+        </MudAlert>
+    }
+
+    @if (Estimate is { Matched: > 0 })
+    {
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Breakdown</MudText>
+            <MudGrid Spacing="3">
+                <MudItem xs="12" md="4"><BreakdownBars Title="Country" Counts="Estimate.ByCountry" Top="8" /></MudItem>
+                <MudItem xs="12" md="4"><BreakdownBars Title="Tier" Counts="Estimate.ByTier" /></MudItem>
+                <MudItem xs="12" md="4"><BreakdownBars Title="Platform" Counts="Estimate.ByPlatform" /></MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Sample</MudText>
+            <MudList T="AudienceUser" Dense="true" SelectionMode="SelectionMode.SingleSelection"
+                     SelectedValue="Selected" SelectedValueChanged="SelectedChanged">
+                @foreach (var user in Estimate.Sample)
+                {
+                    <MudListItem T="AudienceUser" Value="user">
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                            <MudText Typo="Typo.body2"><b>@user.FirstName</b></MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@user.Email</MudText>
+                            <MudSpacer />
+                            <MudText Typo="Typo.caption">@user.Country</MudText>
+                            <MudText Typo="Typo.caption">@user.Tier</MudText>
+                            <MudText Typo="Typo.caption">@user.Platform</MudText>
+                            <MudText Typo="Typo.caption">@user.PointsBalance.ToString("N0", CultureInfo.InvariantCulture) pts</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudPaper>
+
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Why this user matched</MudText>
+            @if (Selected is null)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Pick a user from the sample.</MudText>
+            }
+            else
+            {
+                <MatchExplanation Result="RuleEvaluator.Explain(Rule, Selected, Now)" />
+            }
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public Rule Rule { get; set; } = default!;
+
+    [Parameter]
+    public AudienceEstimate? Estimate { get; set; }
+
+    /// <summary>The moment the estimate was computed, so the explanation reads the same windows.</summary>
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public bool Computing { get; set; }
+
+    /// <summary>False until the user base has arrived, which on the prerender pass is the whole time.</summary>
+    [Parameter]
+    public bool AudienceReady { get; set; }
+
+    [Parameter]
+    public long ElapsedMs { get; set; }
+
+    [Parameter]
+    public double BlastRadiusShare { get; set; }
+
+    [Parameter]
+    public AudienceUser? Selected { get; set; }
+
+    [Parameter]
+    public EventCallback<AudienceUser?> SelectedChanged { get; set; }
+
+    [Parameter]
+    public long? DownloadMs { get; set; }
+
+    [Parameter]
+    public long? DownloadBytes { get; set; }
+
+    private string EmptyText => !AudienceReady
+        ? "Loading the user base"
+        : Computing ? "Estimating" : "Fix the rule to see an estimate.";
+
+    private static bool InBrowser => OperatingSystem.IsBrowser();
+
+    private static string Where => InBrowser ? "evaluated in your browser" : "evaluated on the server";
+
+    private bool OverBlastRadius => Estimate is not null && Estimate.Share > BlastRadiusShare;
+
+    private static string Megabytes(long bytes) =>
+        (bytes / 1024d / 1024d).ToString("0.0", CultureInfo.InvariantCulture);
+}

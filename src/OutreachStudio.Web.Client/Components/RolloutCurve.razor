@@ -1,0 +1,142 @@
+@using System.Globalization
+
+@* The plan the worker would write, drawn before anything is sent. Quiet hours are the bumps. *@
+
+<MudPaper Outlined="true" Class="pa-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">Rollout</MudText>
+
+    @if (Planning)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Planning</MudText>
+    }
+    else if (_buckets.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">No matched users to plan yet.</MudText>
+    }
+    else
+    {
+        <svg class="curve" viewBox="0 0 600 180" role="img" aria-label="sends per ten minutes">
+            <line x1="0" y1="176" x2="600" y2="176" class="curve-axis" />
+            @for (var i = 0; i < _buckets.Count; i++)
+            {
+                var bucket = _buckets[i];
+                var height = bucket.Count * 170d / _peak;
+                <rect class="curve-bar"
+                      x="@Coordinate((i * BarWidth) + 1)"
+                      y="@Coordinate(176 - height)"
+                      width="@Coordinate(Math.Max(BarWidth - 2, 1))"
+                      height="@Coordinate(Math.Max(height, 1))">
+                    <title>@bucket.Start.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) UTC, @bucket.Count.ToString("N0", CultureInfo.InvariantCulture) sends</title>
+                </rect>
+            }
+        </svg>
+
+        @* The axis labels are html rather than svg text, so they do not scale with the viewBox. *@
+        <div class="curve-axis-labels">
+            @foreach (var tick in _ticks)
+            {
+                <span class="curve-label" style="@($"left:{Coordinate(tick.X * 100 / ChartWidth)}%")">@tick.Label</span>
+            }
+        </div>
+
+        <MudText Typo="Typo.body2" Class="mt-2">@_summary</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Ten minute buckets, time in UTC. A bar late in the run is a user whose quiet hours pushed the send to the next morning.
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid CampaignId { get; set; }
+
+    /// <summary>The matched users from the last estimate.</summary>
+    [Parameter]
+    public IReadOnlyList<AudienceUser> Matched { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public Schedule Schedule { get; set; } = new(DateTimeOffset.UnixEpoch, 600, 22, 8, 0.05);
+
+    private const int BucketMinutes = 10;
+    private const double ChartWidth = 600;
+
+    private IReadOnlyList<(DateTimeOffset Start, int Count)> _buckets = [];
+    private List<(double X, string Label)> _ticks = [];
+    private string _summary = "";
+    private double _peak = 1;
+    private double BarWidth => _buckets.Count == 0 ? ChartWidth : ChartWidth / _buckets.Count;
+
+    private bool Planning { get; set; }
+
+    private IReadOnlyList<AudienceUser>? _plannedFor;
+    private Schedule? _plannedWith;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReferenceEquals(_plannedFor, Matched) && _plannedWith == Schedule)
+        {
+            return;
+        }
+
+        _plannedFor = Matched;
+        _plannedWith = Schedule;
+
+        // Planning walks every matched user and converts a time zone per user, so let the
+        // placeholder paint before the loop starts.
+        Planning = true;
+        StateHasChanged();
+        await Task.Yield();
+        Plan();
+        Planning = false;
+    }
+
+    private void Plan()
+    {
+        var plan = RolloutPlanner.Plan(CampaignId, Matched, Schedule);
+        _buckets = RolloutPlanner.Histogram(plan, Schedule.StartAt, BucketMinutes);
+        _peak = _buckets.Count == 0 ? 1 : _buckets.Max(b => b.Count);
+        _ticks = BuildTicks();
+        _summary = Summarise(plan);
+    }
+
+    private List<(double X, string Label)> BuildTicks()
+    {
+        var ticks = new List<(double X, string Label)>();
+        if (_buckets.Count == 0)
+        {
+            return ticks;
+        }
+
+        var step = Math.Max(_buckets.Count / 6, 1);
+        for (var i = 0; i < _buckets.Count; i += step)
+        {
+            var x = (i + 0.5) * BarWidth;
+            ticks.Add((x, _buckets[i].Start.UtcDateTime.ToString("HH:mm", CultureInfo.InvariantCulture)));
+        }
+
+        return ticks;
+    }
+
+    private static string Summarise(IReadOnlyList<PlannedSend> plan)
+    {
+        var sending = plan.Where(p => !p.Holdout).ToList();
+        var holdout = plan.Count - sending.Count;
+        if (sending.Count == 0)
+        {
+            return $"Nothing to send, {holdout.ToString("N0", CultureInfo.InvariantCulture)} in holdout.";
+        }
+
+        var first = sending.Min(p => p.DueAt);
+        var last = sending.Max(p => p.DueAt);
+        var span = last - first;
+        var hours = (int)span.TotalHours;
+        var minutes = span.Minutes;
+        return $"{sending.Count.ToString("N0", CultureInfo.InvariantCulture)} users over "
+             + $"{hours.ToString(CultureInfo.InvariantCulture)} hours {minutes.ToString(CultureInfo.InvariantCulture)} minutes, "
+             + $"{holdout.ToString("N0", CultureInfo.InvariantCulture)} in holdout, "
+             + $"first send at {first.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} UTC, "
+             + $"last send at {last.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} UTC.";
+    }
+
+    private static string Coordinate(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

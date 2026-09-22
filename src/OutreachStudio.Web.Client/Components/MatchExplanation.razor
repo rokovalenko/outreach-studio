@@ -1,0 +1,22 @@
+@* The clause tree for one user, with a tick or a cross and the value that was read. *@
+
+<div class="explain-row" style="@($"padding-left:{Depth * 20}px")">
+    <MudIcon Icon="@(Result.Matched ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)"
+             Color="@(Result.Matched ? Color.Success : Color.Error)"
+             Size="Size.Small" />
+    <span class="explain-clause">@RuleText.Clause(Result.Clause)</span>
+    <span class="explain-actual mud-text-secondary">actual: @Result.Actual</span>
+</div>
+
+@foreach (var child in Result.Children)
+{
+    <MatchExplanation Result="child" Depth="Depth + 1" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public ClauseResult Result { get; set; } = default!;
+
+    [Parameter]
+    public int Depth { get; set; }
+}

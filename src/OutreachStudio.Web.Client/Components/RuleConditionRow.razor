@@ -1,0 +1,154 @@
+@using System.Globalization
+
+@* One attribute comparison. Every edit builds a new clause and hands it to the parent group. *@
+
+<MudPaper Outlined="true" Class="pa-2">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+        <MudSwitch T="bool" Value="_negated" ValueChanged="SetNegated" Label="not" Color="Color.Warning" Size="Size.Small" Disabled="Disabled" />
+
+        <MudSelect T="string" Value="_clause.Attribute" ValueChanged="SetAttribute" ToStringFunc="RuleText.AttributeLabel"
+                   Label="Attribute" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled" Style="min-width:190px">
+            @foreach (var def in UserSchema.Attributes)
+            {
+                <MudSelectItem T="string" Value="@def.Name">@def.Label</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="CompareOp" Value="_clause.Op" ValueChanged="SetOperator" ToStringFunc="RuleText.OperatorLabel"
+                   Label="Operator" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled" Style="min-width:190px">
+            @foreach (var op in _def.Ops)
+            {
+                <MudSelectItem T="CompareOp" Value="@op">@RuleText.OperatorLabel(op)</MudSelectItem>
+            }
+        </MudSelect>
+
+        @switch (_def.Type)
+        {
+            case AttributeType.Bool:
+                <MudSwitch T="bool" Value="BoolValue" ValueChanged="SetBool" Label="@(BoolValue ? "yes" : "no")" Color="Color.Primary" Disabled="Disabled" />
+                break;
+
+            case AttributeType.Number:
+                <MudNumericField T="int" Value="NumberValue" ValueChanged="SetNumber" Label="Value"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Style="min-width:120px" />
+                break;
+
+            case AttributeType.Date when RuleEdit.IsDayCount(_clause.Op):
+                <MudNumericField T="int" Value="DaysValue" ValueChanged="SetDays" Min="1" Label="Days"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Style="min-width:120px" />
+                break;
+
+            case AttributeType.Date:
+                <MudDatePicker Date="DateValue" DateChanged="SetDate" Label="Date" DateFormat="yyyy-MM-dd"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Style="min-width:190px" />
+                break;
+
+            case AttributeType.Enum when RuleEdit.IsList(_clause.Op):
+                <MudSelect T="string" MultiSelection="true" SelectedValues="ListValues" SelectedValuesChanged="SetList"
+                           Label="Values" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled" Style="min-width:190px">
+                    @foreach (var value in _def.EnumValues)
+                    {
+                        <MudSelectItem T="string" Value="@value">@value</MudSelectItem>
+                    }
+                </MudSelect>
+                break;
+
+            case AttributeType.Enum:
+                <MudSelect T="string" Value="_clause.Value" ValueChanged="SetValue"
+                           Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled" Style="min-width:190px">
+                    @foreach (var value in _def.EnumValues)
+                    {
+                        <MudSelectItem T="string" Value="@value">@value</MudSelectItem>
+                    }
+                </MudSelect>
+                break;
+
+            default:
+                <MudTextField T="string" Value="_clause.Value" ValueChanged="SetValue" Immediate="true"
+                              Label="@(RuleEdit.IsList(_clause.Op) ? "Values" : "Value")" HelperText="@TextHint"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Style="min-width:190px" />
+                break;
+        }
+
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="OnRemove" Disabled="Disabled" />
+    </MudStack>
+</MudPaper>
+
+@code {
+    /// <summary>The clause, which may be wrapped in a Not.</summary>
+    [Parameter, EditorRequired]
+    public Rule Rule { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Rule> RuleChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private AttributeCompare _clause = new("tier", CompareOp.Eq, "");
+    private AttributeDefinition _def = UserSchema.Attributes[0];
+    private bool _negated;
+
+    protected override void OnParametersSet()
+    {
+        var (inner, negated) = RuleEdit.Unwrap(Rule);
+        _clause = inner as AttributeCompare ?? RuleEdit.NewCondition();
+        _negated = negated;
+        _def = UserSchema.Find(_clause.Attribute) ?? UserSchema.Attributes[0];
+    }
+
+    private string TextHint => _clause.Attribute switch
+    {
+        "country" when RuleEdit.IsList(_clause.Op) => "ISO codes, comma separated, for example PL, BR, DE",
+        "country" => "ISO code, for example PL",
+        _ when RuleEdit.IsList(_clause.Op) => "comma separated",
+        _ => "",
+    };
+
+    private bool BoolValue => bool.TryParse(_clause.Value, out var flag) && flag;
+
+    private int NumberValue => int.TryParse(_clause.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+
+    private int DaysValue => int.TryParse(_clause.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 30;
+
+    private DateTime? DateValue =>
+        DateOnly.TryParseExact(_clause.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? date.ToDateTime(TimeOnly.MinValue)
+            : null;
+
+    private IReadOnlyCollection<string> ListValues => _clause.Values.ToList();
+
+    private Task Emit(AttributeCompare clause) => RuleChanged.InvokeAsync(RuleEdit.Wrap(clause, _negated));
+
+    private Task SetNegated(bool negated) => RuleChanged.InvokeAsync(RuleEdit.Wrap(_clause, negated));
+
+    private Task SetAttribute(string name)
+    {
+        var def = UserSchema.Find(name) ?? _def;
+        var op = def.Ops.Contains(_clause.Op) ? _clause.Op : def.Ops[0];
+        var value = def.Type == _def.Type
+            ? RuleEdit.Retarget(def, _clause.Value, _clause.Op, op)
+            : RuleEdit.DefaultValue(def, op);
+        return Emit(new AttributeCompare(name, op, value));
+    }
+
+    private Task SetOperator(CompareOp op) =>
+        Emit(_clause with { Op = op, Value = RuleEdit.Retarget(_def, _clause.Value, _clause.Op, op) });
+
+    private Task SetValue(string value) => Emit(_clause with { Value = value });
+
+    private Task SetBool(bool value) => SetValue(value ? "true" : "false");
+
+    private Task SetNumber(int value) => SetValue(value.ToString(CultureInfo.InvariantCulture));
+
+    private Task SetDays(int value) => SetValue(Math.Max(value, 1).ToString(CultureInfo.InvariantCulture));
+
+    private Task SetDate(DateTime? value) =>
+        value is null ? Task.CompletedTask : SetValue(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+
+    private Task SetList(IReadOnlyCollection<string> values) => SetValue(string.Join(",", values));
+}

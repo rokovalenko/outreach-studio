@@ -1,0 +1,130 @@
+@* A group of clauses. It renders itself again for a nested group, so the whole tree is one component. *@
+
+<div class="rule-group @(Depth > 0 ? "rule-group-nested" : "")">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap" Class="mb-2">
+        @if (Depth > 0)
+        {
+            <MudSwitch T="bool" Value="_negated" ValueChanged="SetNegated" Label="not" Color="Color.Warning" Size="Size.Small" Disabled="Disabled" />
+        }
+        <MudToggleGroup T="bool" Value="_isAnd" ValueChanged="SetCombinator" SelectionMode="SelectionMode.SingleSelection" Size="Size.Small" Disabled="Disabled">
+            <MudToggleItem T="bool" Value="true" Text="All" />
+            <MudToggleItem T="bool" Value="false" Text="Any" />
+        </MudToggleGroup>
+        <MudText Typo="Typo.body2">of the following</MudText>
+        <MudSpacer />
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddCondition" Disabled="Disabled">Condition</MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddEvent" Disabled="Disabled">Event</MudButton>
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="AddGroup" Disabled="Disabled">Group</MudButton>
+        @if (Depth > 0)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="OnRemove" Disabled="Disabled" />
+        }
+    </MudStack>
+
+    @if (_children.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            @(_isAnd ? "No conditions, so this group matches everyone." : "No conditions, so this group matches nobody.")
+        </MudText>
+    }
+    else
+    {
+        <MudStack Spacing="2">
+            @for (var i = 0; i < _children.Count; i++)
+            {
+                var index = i;
+                var child = _children[index];
+                var (inner, _) = RuleEdit.Unwrap(child);
+                <div @key="index">
+                    @if (inner is AndRule or OrRule)
+                    {
+                        <RuleTreeEditor Rule="child"
+                                        RuleChanged="@(r => Replace(index, r))"
+                                        OnRemove="@(() => Remove(index))"
+                                        Disabled="Disabled"
+                                        Depth="Depth + 1" />
+                    }
+                    else if (inner is EventCountInWindow)
+                    {
+                        <RuleEventRow Rule="child"
+                                      RuleChanged="@(r => Replace(index, r))"
+                                      OnRemove="@(() => Remove(index))"
+                                      Disabled="Disabled" />
+                    }
+                    else
+                    {
+                        <RuleConditionRow Rule="child"
+                                          RuleChanged="@(r => Replace(index, r))"
+                                          OnRemove="@(() => Remove(index))"
+                                          Disabled="Disabled" />
+                    }
+                </div>
+            }
+        </MudStack>
+    }
+</div>
+
+@code {
+    /// <summary>The group, which may be wrapped in a Not when it is nested.</summary>
+    [Parameter, EditorRequired]
+    public Rule Rule { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Rule> RuleChanged { get; set; }
+
+    /// <summary>Raised for a nested group only, the root group cannot be removed.</summary>
+    [Parameter]
+    public EventCallback OnRemove { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public int Depth { get; set; }
+
+    private Rule _group = new AndRule([]);
+    private IReadOnlyList<Rule> _children = [];
+    private bool _negated;
+    private bool _isAnd = true;
+
+    protected override void OnParametersSet()
+    {
+        var (inner, negated) = RuleEdit.Unwrap(Rule);
+        _group = inner;
+        _negated = negated;
+        _isAnd = inner is not OrRule;
+        _children = RuleEdit.ChildrenOf(inner);
+    }
+
+    private Task Emit(Rule group) => RuleChanged.InvokeAsync(RuleEdit.Wrap(group, _negated));
+
+    private Task SetNegated(bool negated) => RuleChanged.InvokeAsync(RuleEdit.Wrap(_group, negated));
+
+    private Task SetCombinator(bool isAnd) => Emit(isAnd ? new AndRule(_children) : new OrRule(_children));
+
+    private Task AddCondition() => Add(RuleEdit.NewCondition());
+
+    private Task AddEvent() => Add(RuleEdit.NewEvent());
+
+    private Task AddGroup() => Add(RuleEdit.NewGroup());
+
+    private Task Add(Rule child)
+    {
+        var children = new List<Rule>(_children) { child };
+        return Emit(RuleEdit.WithChildren(_group, children));
+    }
+
+    private Task Replace(int index, Rule child)
+    {
+        var children = new List<Rule>(_children);
+        children[index] = child;
+        return Emit(RuleEdit.WithChildren(_group, children));
+    }
+
+    private Task Remove(int index)
+    {
+        var children = new List<Rule>(_children);
+        children.RemoveAt(index);
+        return Emit(RuleEdit.WithChildren(_group, children));
+    }
+}

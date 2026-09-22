@@ -1,0 +1,35 @@
+@using System.Globalization
+
+@* One breakdown of the matched users, biggest first. *@
+
+<MudText Typo="Typo.subtitle2" Class="mb-1">@Title</MudText>
+@foreach (var row in Rows)
+{
+    <div class="breakdown-row">
+        <span class="breakdown-key">@row.Key</span>
+        <MudProgressLinear Value="@(row.Value * 100d / Max)" Color="Color.Primary" Rounded="true" Class="breakdown-bar" />
+        <span class="breakdown-count">@row.Value.ToString("N0", CultureInfo.InvariantCulture)</span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, int> Counts { get; set; } = new Dictionary<string, int>();
+
+    /// <summary>How many rows to show, the rest are left out.</summary>
+    [Parameter]
+    public int Top { get; set; } = 8;
+
+    private List<KeyValuePair<string, int>> Rows { get; set; } = [];
+
+    private double Max { get; set; } = 1;
+
+    protected override void OnParametersSet()
+    {
+        Rows = Counts.OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal).Take(Top).ToList();
+        Max = Rows.Count == 0 ? 1 : Rows[0].Value;
+    }
+}

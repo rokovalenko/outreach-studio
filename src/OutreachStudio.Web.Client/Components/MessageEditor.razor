@@ -1,0 +1,162 @@
+@* Channels, the two message variants and the token chips. *@
+
+<MudStack Spacing="3">
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Channels</MudText>
+        <MudStack Row="true" Spacing="4" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+            <MudSwitch T="bool" Value="Push" ValueChanged="SetPush" Label="Push" Color="Color.Primary" Disabled="@(Disabled || (Push && !Email))" />
+            <MudSwitch T="bool" Value="Email" ValueChanged="SetEmail" Label="Email" Color="Color.Primary" Disabled="@(Disabled || (Email && !Push))" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">At least one channel stays on.</MudText>
+        </MudStack>
+    </MudPaper>
+
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Tokens</MudText>
+        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+            <MudSelect T="string" Value="_target" ValueChanged="SetTarget" ToStringFunc="FieldLabel"
+                       Label="Insert into" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled" Style="min-width:190px">
+                @foreach (var field in Fields)
+                {
+                    <MudSelectItem T="string" Value="@field">@FieldLabel(field)</MudSelectItem>
+                }
+            </MudSelect>
+            @foreach (var token in UserSchema.Tokens.Keys)
+            {
+                <MudChip T="string" Value="@token" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                         Disabled="Disabled" OnClick="@(() => Insert(token))">
+                    @("{{" + token + "}}")
+                </MudChip>
+            }
+        </MudStack>
+    </MudPaper>
+
+    @if (Push)
+    {
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Push</MudText>
+            <MudTextField T="string" Value="Message.PushTitle" ValueChanged="SetPushTitle" Immediate="true"
+                          Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Class="mb-3" />
+            <MudTextField T="string" Value="Message.PushBody" ValueChanged="SetPushBody" Immediate="true" Lines="3"
+                          Label="Body" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" />
+        </MudPaper>
+    }
+
+    @if (Email)
+    {
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Email</MudText>
+            <MudTextField T="string" Value="Message.EmailSubject" ValueChanged="SetEmailSubject" Immediate="true"
+                          Label="Subject" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" Class="mb-3" />
+            <MudTextField T="string" Value="Message.EmailBody" ValueChanged="SetEmailBody" Immediate="true" Lines="8"
+                          Label="Body" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" />
+        </MudPaper>
+    }
+
+    @if (Errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true">
+            @foreach (var error in Errors)
+            {
+                <div>@error</div>
+            }
+        </MudAlert>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public MessageTemplate Message { get; set; } = MessageTemplate.Empty;
+
+    [Parameter]
+    public EventCallback<MessageTemplate> MessageChanged { get; set; }
+
+    [Parameter]
+    public Channels Channels { get; set; }
+
+    [Parameter]
+    public EventCallback<Channels> ChannelsChanged { get; set; }
+
+    /// <summary>The token errors from Personalisation.Validate, computed once by the page.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Errors { get; set; } = [];
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private string _target = "push_body";
+
+    private bool Push => Channels.HasFlag(Channels.Push);
+
+    private bool Email => Channels.HasFlag(Channels.Email);
+
+    private IReadOnlyList<string> Fields
+    {
+        get
+        {
+            var fields = new List<string>();
+            if (Push)
+            {
+                fields.Add("push_title");
+                fields.Add("push_body");
+            }
+
+            if (Email)
+            {
+                fields.Add("email_subject");
+                fields.Add("email_body");
+            }
+
+            return fields;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!Fields.Contains(_target) && Fields.Count > 0)
+        {
+            _target = Fields[0];
+        }
+    }
+
+    private static string FieldLabel(string field) => field switch
+    {
+        "push_title" => "Push title",
+        "push_body" => "Push body",
+        "email_subject" => "Email subject",
+        "email_body" => "Email body",
+        _ => field,
+    };
+
+    private void SetTarget(string field) => _target = field;
+
+    private Task SetPush(bool on) => SetChannel(Channels.Push, on);
+
+    private Task SetEmail(bool on) => SetChannel(Channels.Email, on);
+
+    private Task SetChannel(Channels channel, bool on)
+    {
+        var next = on ? Channels | channel : Channels & ~channel;
+        return next == Channels.None ? Task.CompletedTask : ChannelsChanged.InvokeAsync(next);
+    }
+
+    private Task SetPushTitle(string value) => MessageChanged.InvokeAsync(Message with { PushTitle = value });
+
+    private Task SetPushBody(string value) => MessageChanged.InvokeAsync(Message with { PushBody = value });
+
+    private Task SetEmailSubject(string value) => MessageChanged.InvokeAsync(Message with { EmailSubject = value });
+
+    private Task SetEmailBody(string value) => MessageChanged.InvokeAsync(Message with { EmailBody = value });
+
+    private Task Insert(string token)
+    {
+        var text = "{{" + token + "}}";
+        return _target switch
+        {
+            "push_title" => SetPushTitle(Message.PushTitle + text),
+            "push_body" => SetPushBody(Message.PushBody + text),
+            "email_subject" => SetEmailSubject(Message.EmailSubject + text),
+            "email_body" => SetEmailBody(Message.EmailBody + text),
+            _ => Task.CompletedTask,
+        };
+    }
+}

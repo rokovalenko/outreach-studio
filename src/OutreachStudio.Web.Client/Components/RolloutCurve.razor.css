@@ -1,0 +1,28 @@
+.curve {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.curve-axis {
+  stroke: var(--mud-palette-divider);
+  stroke-width: 1;
+}
+
+.curve-bar {
+  fill: var(--mud-palette-primary);
+}
+
+.curve-axis-labels {
+  position: relative;
+  height: 1.25rem;
+}
+
+.curve-label {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--mud-palette-text-secondary);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
