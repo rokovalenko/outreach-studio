@@ -27,19 +27,30 @@ public static class RolloutPlanner
         return plan;
     }
 
-    /// <summary>Sends per bucket, for the curve. Buckets start at the schedule start and are <paramref name="bucketMinutes"/> wide.</summary>
+    /// <summary>
+    /// Sends per bucket, for the curve. Buckets are <paramref name="bucketMinutes"/> wide, start at the
+    /// schedule start and run without gaps to the last send, so a quiet night shows as empty bars.
+    /// </summary>
     public static IReadOnlyList<(DateTimeOffset Start, int Count)> Histogram(IReadOnlyList<PlannedSend> plan, DateTimeOffset start, int bucketMinutes)
     {
-        var buckets = new SortedDictionary<long, int>();
+        var counts = new Dictionary<long, int>();
+        long last = 0;
         foreach (var p in plan)
         {
             if (p.Holdout)
             {
                 continue;
             }
-            var minutes = (long)Math.Floor((p.DueAt - start).TotalMinutes / bucketMinutes) * bucketMinutes;
-            buckets[minutes] = buckets.TryGetValue(minutes, out var n) ? n + 1 : 1;
+            var bucket = (long)Math.Floor((p.DueAt - start).TotalMinutes / bucketMinutes);
+            counts[bucket] = counts.TryGetValue(bucket, out var n) ? n + 1 : 1;
+            last = Math.Max(last, bucket);
         }
-        return buckets.Select(b => (start.AddMinutes(b.Key), b.Value)).ToList();
+        if (counts.Count == 0)
+        {
+            return [];
+        }
+        return Enumerable.Range(0, (int)last + 1)
+            .Select(i => (start.AddMinutes((long)i * bucketMinutes), counts.GetValueOrDefault(i)))
+            .ToList();
     }
 }

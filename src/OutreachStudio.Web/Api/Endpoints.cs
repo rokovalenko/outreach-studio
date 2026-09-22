@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
-using OutreachStudio.Engine.Audience;
 using OutreachStudio.Data;
+using OutreachStudio.Engine.Audience;
 using OutreachStudio.Web.Client.Api;
 using OutreachStudio.Web.Services;
 

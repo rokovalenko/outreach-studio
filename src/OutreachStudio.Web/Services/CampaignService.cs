@@ -352,7 +352,7 @@ public sealed class CampaignService(OutreachDbContext db, AudienceCache audience
 
         var deadRows = await rows.Where(d => d.Status == DeliveryStatus.Failed)
             .OrderBy(d => d.UserId)
-            .Take(200)
+            .Take(50)
             .Select(d => new { d.UserId, d.Channel, d.Provider, d.Attempts, d.LastError })
             .ToListAsync(ct);
         var dead = deadRows.Select(d => new DeadLetter(d.UserId, d.Channel, d.Provider, d.Attempts, d.LastError)).ToList();
