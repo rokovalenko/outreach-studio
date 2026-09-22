@@ -96,8 +96,9 @@ public static class SyntheticUsers
     private static Tier PickTier(Random rng, DateOnly signup, DateOnly today)
     {
         var tenureYears = (today.DayNumber - signup.DayNumber) / 365.0;
-        var roll = rng.NextDouble() + tenureYears * 0.15;
-        return roll switch { < 0.55 => Tier.Bronze, < 0.85 => Tier.Silver, < 0.97 => Tier.Gold, _ => Tier.Platinum };
+        var roll = rng.NextDouble();
+        // Platinum takes a year of tenure on top of the roll, so it stays the small tier.
+        return roll switch { < 0.55 => Tier.Bronze, < 0.85 => Tier.Silver, < 0.96 => Tier.Gold, _ => tenureYears >= 1 ? Tier.Platinum : Tier.Gold };
     }
 
     private static Dictionary<EventType, long[]> GenerateEvents(Random rng, DateTimeOffset now, double activity, DateOnly signup)

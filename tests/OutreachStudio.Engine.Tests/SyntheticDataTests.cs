@@ -1,5 +1,6 @@
 using OutreachStudio.Data.Seeding;
 using OutreachStudio.Data.Synthetic;
+using OutreachStudio.Engine.Audience;
 using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Engine.Messaging;
 using OutreachStudio.Engine.Rules;
@@ -30,6 +31,8 @@ public class SyntheticDataTests
         Assert.InRange(users.Count(u => u.MarketingConsent) / (double)users.Count, 0.75, 0.9);
         Assert.InRange(users.Count(u => u.Country == "PL") / (double)users.Count, 0.12, 0.25);
         Assert.True(users.All(u => u.Events.Values.All(v => v.SequenceEqual(v.Order()))), "event timestamps are sorted");
+        var byTier = users.GroupBy(u => u.Tier).ToDictionary(g => g.Key, g => g.Count());
+        Assert.True(byTier[Tier.Platinum] < byTier[Tier.Gold] && byTier[Tier.Gold] < byTier[Tier.Silver] && byTier[Tier.Silver] < byTier[Tier.Bronze], "tiers form a pyramid");
     }
 
     [Fact]
