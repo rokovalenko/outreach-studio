@@ -1,0 +1,63 @@
+@* The one place the app explains itself, behind a quiet button in the app bar. It is an HTML
+   popover and not a MudDialog because the layout is static and the editor page runs in
+   WebAssembly, so there is no interactive island here to open a dialog from. The popover
+   attribute gives a top layer panel with a backdrop and light dismiss without any script. *@
+
+<button type="button" class="about-trigger" popovertarget="about">why this exists</button>
+
+<div id="about" class="about" popover>
+    <h2>Why this exists</h2>
+    <p>
+        This is a showcase, not a product. It comes from running user outreach and loyalty tooling,
+        where the recurring problems were not knowing who a campaign would reach until it had been
+        sent, sending the same message twice, and nobody being able to say what was delivered when
+        a provider failed mid-send. It is built to show what a Blazor Web App looks like when those
+        parts are done properly. Nothing here comes from any real system.
+    </p>
+
+    <h3>What this is</h3>
+    <p>
+        A campaign builder for a loyalty and rewards product. You build an audience rule, write a
+        push and an email variant, schedule the send, approve it and watch it go out through mock
+        providers that can be made to fail. Five processes under one Aspire AppHost, Postgres, two
+        workers and four providers.
+    </p>
+
+    <h3>How to use it</h3>
+    <p>
+        Open a campaign and edit its rule. The count, the breakdowns and the sample of ten update on
+        every change. Click a sampled user for the clauses that matched it. Submit, approve and
+        schedule, then open Live and flip <code>push-a</code> down on the Providers page while the
+        send runs. The results page groups every skip by reason. All data is synthetic, generated
+        from a seed.
+    </p>
+
+    <h3>Why the count in the browser is the count on the server</h3>
+    <p>
+        The rule engine is one assembly with no package references, loaded by the browser in
+        WebAssembly and by the web server and the worker. The editor evaluates the rule over all
+        20,000 users locally, so the estimate needs no round trip, and the same code decides the
+        real audience at schedule time. The chip in the editor says where the evaluation ran. An
+        end to end test asserts that both sides return the same count for the same rule.
+    </p>
+
+    <h3>Why a user gets one message</h3>
+    <p>
+        Scheduling writes one delivery row per user per channel in the same transaction as the
+        status change, and the table has a unique key on campaign, user and channel. Workers claim
+        rows with <code>FOR UPDATE SKIP LOCKED</code>, so adding workers changes throughput and not
+        the count. A test runs six workers against a provider that fails one call in ten and asserts
+        that 3,000 rows produce exactly 3,000 successful calls.
+    </p>
+
+    <h3>Why the guardrails run in the worker</h3>
+    <p>
+        Consent, the suppression list, the frequency cap and quiet hours are checked when the row
+        is claimed, not when the campaign is authored, because a user can opt out between approval
+        and send. Every skip is written with a reason. Every delivery is one trace with the provider
+        calls as children, so a failed primary and the retry through the secondary are visible in
+        the Aspire dashboard.
+    </p>
+
+    <button type="button" class="about-close" popovertarget="about" popovertargetaction="hide">close</button>
+</div>
