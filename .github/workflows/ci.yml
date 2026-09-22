@@ -29,3 +29,6 @@ jobs:
 
       - name: Worker tests (Testcontainers, includes the exactly-once concurrency test)
         run: dotnet test --no-build --configuration Release --project tests/OutreachStudio.Worker.Tests
+
+      - name: End to end (Aspire AppHost plus Playwright)
+        run: dotnet test --no-build --configuration Release --project tests/OutreachStudio.E2E

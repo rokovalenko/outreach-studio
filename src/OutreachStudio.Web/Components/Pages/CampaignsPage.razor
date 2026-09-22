@@ -36,7 +36,7 @@
             <MudTh>Updated</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Name" Style="white-space: nowrap">@context.Name</MudTd>
+            <MudTd DataLabel="Name" Style="white-space: nowrap"><MudLink Href="@($"/campaigns/{context.Id}")" Color="Color.Inherit" Underline="Underline.None">@context.Name</MudLink></MudTd>
             <MudTd DataLabel="Status"><StatusChip Status="context.Status" /></MudTd>
             <MudTd DataLabel="Audience" Class="num" Style="text-align:right">@(context.AudienceSize is null ? "" : Format.Number(context.AudienceSize.Value))</MudTd>
             <MudTd DataLabel="Sent" Class="num" Style="text-align:right">@Format.Number(context.Sent)</MudTd>

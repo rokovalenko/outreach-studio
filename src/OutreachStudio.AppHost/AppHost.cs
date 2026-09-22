@@ -11,6 +11,7 @@ var providers = builder.AddProject<Projects.OutreachStudio_Providers>("providers
 
 var web = builder.AddProject<Projects.OutreachStudio_Web>("web")
     .WithExternalHttpEndpoints()
+    .WithHttpHealthCheck("/health")
     .WithReference(db).WaitFor(db)
     .WithReference(providers);
 
