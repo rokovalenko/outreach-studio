@@ -21,7 +21,7 @@ public static class Format
 
     public static string Share(double share) => (share * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
-    /// <summary>An enum name as a phrase, so ConsentRevoked reads as consent revoked.</summary>
+    /// <summary>An enum name as a phrase, so ConsentRevoked reads as Consent revoked.</summary>
     public static string Words(string name)
     {
         var text = string.Concat(name.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + char.ToLowerInvariant(c) : c.ToString()));

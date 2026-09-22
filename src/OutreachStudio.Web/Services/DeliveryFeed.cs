@@ -73,8 +73,8 @@ public sealed class DeliveryFeed(IConfiguration configuration, ILogger<DeliveryF
             }
             catch (Exception ex)
             {
-                // The database restarts, the connection is cut, or the payload is not what we expect.
-                // Wait a moment and open a new connection, because a dead listener shows a dead board.
+                // The database restarted or the connection was cut. Wait a moment and open a new
+                // connection, because a dead listener shows a dead board.
                 logger.LogWarning(ex, "Lost the delivery_events listener, reconnecting in {Seconds} s", RetryDelay.TotalSeconds);
                 await Task.Delay(RetryDelay, stoppingToken).ConfigureAwait(false);
             }

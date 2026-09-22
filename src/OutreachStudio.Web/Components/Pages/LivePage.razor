@@ -181,8 +181,8 @@ else
         {
             while (await timer.WaitForNextTickAsync(ct))
             {
-                // The database work runs on the renderer's dispatcher, because the context behind
-                // CampaignService belongs to this circuit and takes one operation at a time.
+                // The CampaignService reads run inside InvokeAsync below, because its context belongs
+                // to this circuit and takes one operation at a time.
                 var refresh = ++ticks % 10 == 0;
                 // Attempt rows are the only place a failed primary call shows up, because the
                 // notification carries the provider that finally succeeded.

@@ -43,7 +43,7 @@ public sealed class Campaign
     public CampaignStatus Status { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
-    /// <summary>The version that was submitted, approved and sent. Drafts edit a new version on top.</summary>
+    /// <summary>The latest version, and the one the worker sends. Only a draft can be edited, and each change writes the next version.</summary>
     public int CurrentVersion { get; set; }
     /// <summary>Filled at schedule time from the server-side evaluation.</summary>
     public int? AudienceSize { get; set; }

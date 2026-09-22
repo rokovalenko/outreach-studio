@@ -45,7 +45,7 @@ public static class VersionDiff
             .ToList();
     }
 
-    /// <summary>Rule.JsonOptions writes indented, so the stored text is already the text we show.</summary>
+    /// <summary>jsonb comes back with its whitespace gone, so the rule is parsed and written again to get indented lines.</summary>
     public static string Pretty(string ruleJson) => Rule.FromJson(ruleJson).ToJson();
 
     private static string[] Lines(string ruleJson) => Pretty(ruleJson).Split('\n');

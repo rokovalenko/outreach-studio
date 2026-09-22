@@ -13,8 +13,7 @@ public sealed record ReceiptPost(string MessageId, string Type, DateTimeOffset A
 
 /// <summary>
 /// The JSON the browser half of the editor and the providers service talk to. Enums go over the
-/// wire as names so the audience payload reads the same in the browser as it does in psql, and so
-/// the dictionary keyed by event type keeps its keys.
+/// wire as names so a status or a channel reads the same on both sides.
 /// </summary>
 public static class Endpoints
 {

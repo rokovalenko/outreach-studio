@@ -4,7 +4,7 @@ using OutreachStudio.Engine.Rules;
 
 namespace OutreachStudio.Web.Client.Editor;
 
-/// <summary>One clause read as a sentence. Depth is how deep the clause sits in the tree.</summary>
+/// <summary>One clause read as a sentence, indented by its depth in the tree.</summary>
 public sealed record RuleLine(int Depth, string Text);
 
 /// <summary>

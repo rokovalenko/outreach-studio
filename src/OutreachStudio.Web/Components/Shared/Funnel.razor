@@ -1,4 +1,4 @@
-@* Bars scaled to the first step, so each step reads as a share of the one it came from. *@
+@* Bars scaled to the first step, so each step reads as a share of the audience. *@
 
 @if (Compact)
 {
@@ -32,7 +32,7 @@ else
 
     [Parameter, EditorRequired] public IReadOnlyList<Step> Steps { get; set; } = [];
 
-    /// <summary>Three thin bars with no labels, for a table cell.</summary>
+    /// <summary>Thin bars with no labels, for a table cell.</summary>
     [Parameter] public bool Compact { get; set; }
 
     private double Percent(int value)

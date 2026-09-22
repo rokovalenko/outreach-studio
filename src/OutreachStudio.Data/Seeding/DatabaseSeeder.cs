@@ -67,7 +67,8 @@ public static class DatabaseSeeder
 
     private static Campaign BuildCampaign(SeedCampaign seed, DateTimeOffset now, Random rng)
     {
-        // Unsent campaigns carry a start that has already passed, so scheduling one begins at once.
+        // Draft, in review and approved campaigns start an hour in the past, so scheduling one begins at once.
+        // The seeded scheduled campaign starts 90 seconds after boot so the first dashboard visit has a live send.
         var start = seed.Status switch
         {
             CampaignStatus.Scheduled => now.AddSeconds(90),
