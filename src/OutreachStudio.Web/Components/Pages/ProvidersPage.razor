@@ -1,0 +1,26 @@
+@page "/providers"
+@rendermode InteractiveServer
+
+<PageTitle>Providers</PageTitle>
+
+<MudStack Spacing="6">
+    <div>
+        <MudText Typo="Typo.h5">Providers</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            Four mock providers, two per channel. The b side is the failover target of the a side.
+        </MudText>
+    </div>
+
+    <div>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Health, last 15 minutes</MudText>
+        <ProviderHealthTiles />
+    </div>
+
+    <div>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Chaos</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+            Settings apply immediately, so a running send feels them on the next call.
+        </MudText>
+        <ChaosPanel />
+    </div>
+</MudStack>

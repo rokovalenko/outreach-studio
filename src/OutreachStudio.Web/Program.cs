@@ -1,19 +1,60 @@
+using System.IO.Compression;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using OutreachStudio.Data;
+using OutreachStudio.Data.Seeding;
+using OutreachStudio.ServiceDefaults;
+using OutreachStudio.Web.Api;
+using OutreachStudio.Web.Client.Api;
 using OutreachStudio.Web.Components;
+using OutreachStudio.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add MudBlazor services
+builder.AddServiceDefaults();
+builder.AddNpgsqlDbContext<OutreachDbContext>("outreach");
 builder.Services.AddMudServices();
-
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
+// The audience download is a few megabytes of JSON. Only that content type is compressed, so the
+// pre-compressed static assets keep being served as they are.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ["application/json"];
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+
+builder.Services.AddHttpClient("providers", http => http.BaseAddress = new Uri("http://providers"));
+
+builder.Services.AddSingleton<AudienceCache>();
+builder.Services.AddSingleton<IAudienceSource>(sp => sp.GetRequiredService<AudienceCache>());
+builder.Services.AddSingleton<DeliveryFeed>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<DeliveryFeed>());
+builder.Services.AddScoped<CampaignService>();
+builder.Services.AddScoped<ICampaignEditorApi, ServerCampaignEditorApi>();
+builder.Services.AddScoped<ProviderHealth>();
+builder.Services.AddScoped<SuppressionService>();
+builder.Services.AddScoped<ChaosClient>();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// The database is created and filled here rather than in the AppHost, so a fresh clone has a
+// history to look at after one dotnet run.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<OutreachDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    await db.Database.MigrateAsync();
+    await DatabaseSeeder.SeedIfEmptyAsync(db, DateTimeOffset.UtcNow, logger, CancellationToken.None);
+}
+
+app.UseResponseCompression();
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
@@ -23,11 +64,12 @@ else
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-
-
+app.UseMiddleware<InvalidStateMiddleware>();
 app.UseAntiforgery();
 
+app.MapDefaultEndpoints();
 app.MapStaticAssets();
+app.MapApi();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()

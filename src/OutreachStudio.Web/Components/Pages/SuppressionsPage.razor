@@ -1,0 +1,69 @@
+@page "/suppressions"
+@rendermode InteractiveServer
+@inject SuppressionService Suppressions
+@inject ISnackbar Snackbar
+
+<PageTitle>Suppressions</PageTitle>
+
+<MudStack Spacing="6">
+    <div>
+        <MudText Typo="Typo.h5">Suppressions</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            @Format.Number(Total) addresses we do not contact. Checked when a delivery is sent, not when a rule is counted.
+        </MudText>
+    </div>
+
+    <MudPaper Class="pa-4" Outlined="true">
+        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="Email" Label="Email" Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Style="min-width: 280px" />
+            <MudTextField @bind-Value="Reason" Label="Reason" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 280px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(string.IsNullOrWhiteSpace(Email))" OnClick="AddAsync">Add</MudButton>
+        </MudStack>
+    </MudPaper>
+
+    <MudTable T="Suppression" Items="Rows" Dense="true" Hover="true" Elevation="0" Outlined="true" FixedHeader="true" Height="60vh">
+        <HeaderContent>
+            <MudTh>Email</MudTh>
+            <MudTh>Reason</MudTh>
+            <MudTh>Added</MudTh>
+            <MudTh />
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Reason">@context.Reason</MudTd>
+            <MudTd DataLabel="Added" Class="mud-text-secondary">@Format.Utc(context.CreatedAt)</MudTd>
+            <MudTd Style="text-align:right">
+                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" OnClick="@(() => RemoveAsync(context.Email))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudStack>
+
+@code {
+    private List<Suppression> Rows = [];
+    private int Total;
+    private string Email = "";
+    private string Reason = "Unsubscribed via support";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Rows = [.. await Suppressions.ListAsync(CancellationToken.None)];
+        Total = await Suppressions.CountAsync(CancellationToken.None);
+    }
+
+    private async Task AddAsync()
+    {
+        await Suppressions.AddAsync(Email, string.IsNullOrWhiteSpace(Reason) ? "Added by hand" : Reason, CancellationToken.None);
+        Snackbar.Add($"{Email.Trim().ToLowerInvariant()} will not be contacted", Severity.Success);
+        Email = "";
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(string email)
+    {
+        await Suppressions.RemoveAsync(email, CancellationToken.None);
+        await LoadAsync();
+    }
+}

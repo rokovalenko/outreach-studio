@@ -1,0 +1,41 @@
+@using OutreachStudio.Engine.Rules
+
+@if (Rule is AndRule { Children.Count: 0 })
+{
+    <MudText Typo="Typo.body2">Everyone</MudText>
+}
+else if (Rule is AndRule and)
+{
+    <MudText Typo="Typo.body2" Class="rule-op">all of</MudText>
+    <div class="rule-children">
+        @foreach (var child in and.Children)
+        {
+            <RuleText Rule="child" />
+        }
+    </div>
+}
+else if (Rule is OrRule or)
+{
+    <MudText Typo="Typo.body2" Class="rule-op">any of</MudText>
+    <div class="rule-children">
+        @foreach (var child in or.Children)
+        {
+            <RuleText Rule="child" />
+        }
+    </div>
+}
+else if (Rule is NotRule not)
+{
+    <MudText Typo="Typo.body2" Class="rule-op">not</MudText>
+    <div class="rule-children">
+        <RuleText Rule="not.Child" />
+    </div>
+}
+else
+{
+    <MudText Typo="Typo.body2">@RuleWords.Leaf(Rule)</MudText>
+}
+
+@code {
+    [Parameter, EditorRequired] public Rule Rule { get; set; } = OutreachStudio.Engine.Rules.Rule.Everyone();
+}

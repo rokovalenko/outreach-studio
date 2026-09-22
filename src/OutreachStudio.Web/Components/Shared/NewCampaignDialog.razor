@@ -1,0 +1,17 @@
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="Name" Label="Campaign name" Variant="Variant.Outlined" Immediate="true"
+                      AutoFocus="true" HelperText="You can change it while it is a draft" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => Dialog.Cancel())">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(string.IsNullOrWhiteSpace(Name))"
+                   OnClick="@(() => Dialog.Close(DialogResult.Ok(Name.Trim())))">Create draft</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private string Name { get; set; } = "";
+}
