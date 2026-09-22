@@ -4,7 +4,7 @@ using OutreachStudio.Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
-builder.AddNpgsqlDbContext<OutreachDbContext>("outreach");
+builder.AddNpgsqlDbContext<OutreachDbContext>("outreach", configureDbContextOptions: OutreachDbContext.Configure);
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection("Outbox"));
 
 // The send policy owns the retries and records every call, so the shared resilience handler would

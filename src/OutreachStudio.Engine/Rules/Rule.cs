@@ -48,6 +48,7 @@ public sealed record NotRule(Rule Child) : Rule;
 /// <summary>Compare one attribute with a value. For In and NotIn the value is comma separated.</summary>
 public sealed record AttributeCompare(string Attribute, CompareOp Op, string Value) : Rule
 {
+    [JsonIgnore]
     public IReadOnlyList<string> Values => Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 }
 

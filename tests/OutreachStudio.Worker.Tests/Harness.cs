@@ -20,7 +20,7 @@ public sealed class Harness : IAsyncDisposable
         _fixture = fixture;
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<OutreachDbContext>(o => o.UseNpgsql(fixture.ConnectionString));
+        services.AddDbContext<OutreachDbContext>(o => OutreachDbContext.Configure(o.UseNpgsql(fixture.ConnectionString)));
         services.AddSingleton(clock ?? TimeProvider.System);
         services.AddSingleton<IProviderClient>(Providers);
         services.Configure<OutboxOptions>(o => configure?.Invoke(o));

@@ -22,8 +22,12 @@ public sealed class PostgresFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public OutreachDbContext NewContext() =>
-        new(new DbContextOptionsBuilder<OutreachDbContext>().UseNpgsql(ConnectionString).Options);
+    public OutreachDbContext NewContext()
+    {
+        var options = new DbContextOptionsBuilder<OutreachDbContext>().UseNpgsql(ConnectionString);
+        OutreachDbContext.Configure(options);
+        return new(options.Options);
+    }
 
     public async ValueTask DisposeAsync() => await _postgres.DisposeAsync();
 }

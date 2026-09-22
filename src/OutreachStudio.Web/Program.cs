@@ -14,13 +14,9 @@ using OutreachStudio.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-// The context is registered by hand and then enriched, because Aspire's AddNpgsqlDbContext pools
-// contexts and a pooled context may not set its own options, which is where the snake_case naming
-// convention lives. Retries are off because the schedule pass opens its own transaction and a
-// retrying execution strategy refuses to run inside one.
-builder.Services.AddDbContext<OutreachDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("outreach")));
-builder.EnrichNpgsqlDbContext<OutreachDbContext>(settings => settings.DisableRetry = true);
+// Retries are off because the schedule pass opens its own transaction and a retrying execution
+// strategy refuses to run inside one.
+builder.AddNpgsqlDbContext<OutreachDbContext>("outreach", settings => settings.DisableRetry = true, OutreachDbContext.Configure);
 // Messages come up in the bottom corner because the page actions live in the top one.
 builder.Services.AddMudServices(mud =>
 {

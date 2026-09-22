@@ -5,6 +5,9 @@ namespace OutreachStudio.Data;
 
 public sealed class OutreachDbContext(DbContextOptions<OutreachDbContext> options) : DbContext(options)
 {
+    /// <summary>Every registration calls this, because a pooled context cannot add conventions in OnConfiguring.</summary>
+    public static void Configure(DbContextOptionsBuilder options) => options.UseSnakeCaseNamingConvention();
+
     public DbSet<User> Users => Set<User>();
     public DbSet<UserEvent> UserEvents => Set<UserEvent>();
     public DbSet<Campaign> Campaigns => Set<Campaign>();
@@ -13,8 +16,6 @@ public sealed class OutreachDbContext(DbContextOptions<OutreachDbContext> option
     public DbSet<Delivery> Deliveries => Set<Delivery>();
     public DbSet<DeliveryAttempt> DeliveryAttempts => Set<DeliveryAttempt>();
     public DbSet<Suppression> Suppressions => Set<Suppression>();
-
-    protected override void OnConfiguring(DbContextOptionsBuilder options) => options.UseSnakeCaseNamingConvention();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -74,6 +75,10 @@ public sealed class OutreachDbContext(DbContextOptions<OutreachDbContext> option
 /// <summary>Lets `dotnet ef migrations add` build the context without a running AppHost.</summary>
 public sealed class DesignTimeFactory : IDesignTimeDbContextFactory<OutreachDbContext>
 {
-    public OutreachDbContext CreateDbContext(string[] args) =>
-        new(new DbContextOptionsBuilder<OutreachDbContext>().UseNpgsql("Host=localhost;Database=outreach").Options);
+    public OutreachDbContext CreateDbContext(string[] args)
+    {
+        var options = new DbContextOptionsBuilder<OutreachDbContext>().UseNpgsql("Host=localhost;Database=outreach");
+        OutreachDbContext.Configure(options);
+        return new(options.Options);
+    }
 }

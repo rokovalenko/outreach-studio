@@ -1,6 +1,8 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var postgres = builder.AddPostgres("postgres")
+// A fixed password, because the data volume persists between runs and a generated one would not match it.
+var password = builder.AddParameter("postgres-password", "outreach-local", secret: true);
+var postgres = builder.AddPostgres("postgres", password: password)
     .WithDataVolume("outreach-studio-postgres")
     .WithLifetime(ContainerLifetime.Persistent);
 var db = postgres.AddDatabase("outreach");
