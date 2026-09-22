@@ -83,7 +83,7 @@ The audience snapshot the browser downloads is a binary stream, 2.5 MB compresse
 
 ## Data
 
-Everything is synthetic and generated from a fixed seed on first start. Names are syllables, emails are on example.net, event histories are Poisson draws. There is no real or employer derived data, rule, name or copy in the repo.
+Everything is synthetic and generated from a fixed seed on first start. Names are syllables, emails are on example.net, event histories are Poisson samples. There is no real or employer derived data, rule, name or copy in the repo.
 
 ## Status
 
