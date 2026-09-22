@@ -28,30 +28,30 @@ public static class RuleEvaluator
         switch (rule)
         {
             case AndRule and:
-            {
-                var children = and.Children.Select(c => Explain(c, user, now)).ToList();
-                return new(rule, children.All(c => c.Matched), $"{children.Count(c => c.Matched)} of {children.Count}", children);
-            }
+                {
+                    var children = and.Children.Select(c => Explain(c, user, now)).ToList();
+                    return new(rule, children.All(c => c.Matched), $"{children.Count(c => c.Matched)} of {children.Count}", children);
+                }
             case OrRule or:
-            {
-                var children = or.Children.Select(c => Explain(c, user, now)).ToList();
-                return new(rule, children.Count > 0 && children.Any(c => c.Matched), $"{children.Count(c => c.Matched)} of {children.Count}", children);
-            }
+                {
+                    var children = or.Children.Select(c => Explain(c, user, now)).ToList();
+                    return new(rule, children.Count > 0 && children.Any(c => c.Matched), $"{children.Count(c => c.Matched)} of {children.Count}", children);
+                }
             case NotRule not:
-            {
-                var child = Explain(not.Child, user, now);
-                return new(rule, !child.Matched, child.Actual, [child]);
-            }
+                {
+                    var child = Explain(not.Child, user, now);
+                    return new(rule, !child.Matched, child.Actual, [child]);
+                }
             case AttributeCompare a:
-            {
-                var (matched, actual) = CompareAttribute(a, user, now);
-                return new(rule, matched, actual, []);
-            }
+                {
+                    var (matched, actual) = CompareAttribute(a, user, now);
+                    return new(rule, matched, actual, []);
+                }
             case EventCountInWindow e:
-            {
-                var (matched, actual) = CompareEvents(e, user, now);
-                return new(rule, matched, actual, []);
-            }
+                {
+                    var (matched, actual) = CompareEvents(e, user, now);
+                    return new(rule, matched, actual, []);
+                }
             default:
                 throw new NotSupportedException(rule.GetType().Name);
         }

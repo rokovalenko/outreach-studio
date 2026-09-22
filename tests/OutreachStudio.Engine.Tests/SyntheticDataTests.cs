@@ -1,6 +1,6 @@
-using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Data.Seeding;
 using OutreachStudio.Data.Synthetic;
+using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Engine.Messaging;
 using OutreachStudio.Engine.Rules;
 using static OutreachStudio.Engine.Tests.Fixtures;
