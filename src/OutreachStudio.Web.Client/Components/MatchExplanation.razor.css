@@ -1,0 +1,17 @@
+.explain-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 0.875rem;
+}
+
+.explain-clause {
+  flex: 1 1 auto;
+}
+
+.explain-actual {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}

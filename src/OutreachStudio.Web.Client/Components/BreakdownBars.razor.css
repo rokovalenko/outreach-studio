@@ -1,0 +1,25 @@
+.breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 0.8125rem;
+}
+
+.breakdown-key {
+  flex: 0 0 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breakdown-bar {
+  flex: 1 1 auto;
+}
+
+.breakdown-count {
+  flex: 0 0 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,106 @@
+@using System.Globalization
+
+@* Start, throttle, quiet hours and holdout. Everything is stored in UTC. *@
+
+<MudPaper Outlined="true" Class="pa-4">
+    <MudGrid Spacing="3">
+        <MudItem xs="12" sm="6">
+            <MudDatePicker Date="StartDate" DateChanged="SetStartDate" Label="Start date (UTC)" DateFormat="yyyy-MM-dd"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudTimePicker Time="StartTime" TimeChanged="SetStartTime" Label="Start time (UTC)"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6">
+            <MudNumericField T="int" Value="Schedule.PerMinute" ValueChanged="SetPerMinute" Min="1" Max="100000"
+                             Label="Sends per minute" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Disabled" />
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudText Typo="Typo.body2" Class="mt-3">
+                Holdout @Schedule.HoldoutShare.ToString("P0", CultureInfo.InvariantCulture)
+            </MudText>
+            <MudSlider T="double" Value="Schedule.HoldoutShare" ValueChanged="SetHoldout" Min="0.0" Max="0.2" Step="0.01"
+                       Color="Color.Primary" Disabled="Disabled" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6">
+            <MudSelect T="int" Value="Schedule.QuietStartHour" ValueChanged="SetQuietStart" ToStringFunc="Hour"
+                       Label="Quiet hours start" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled">
+                @foreach (var hour in Hours)
+                {
+                    <MudSelectItem T="int" Value="@hour">@Hour(hour)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudSelect T="int" Value="Schedule.QuietEndHour" ValueChanged="SetQuietEnd" ToStringFunc="Hour"
+                       Label="Quiet hours end" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="Disabled">
+                @foreach (var hour in Hours)
+                {
+                    <MudSelectItem T="int" Value="@hour">@Hour(hour)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                @(Schedule.HasQuietHours
+                    ? "Quiet hours are read in each user's own time zone and a send inside them moves to the next morning."
+                    : "Start and end are equal, so there are no quiet hours and nothing is moved.")
+            </MudText>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public Schedule Schedule { get; set; } = new(DateTimeOffset.UnixEpoch, 600, 22, 8, 0.05);
+
+    [Parameter]
+    public EventCallback<Schedule> ScheduleChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private static readonly int[] Hours = [.. Enumerable.Range(0, 24)];
+
+    private DateTime? StartDate => Schedule.StartAt.UtcDateTime.Date;
+
+    private TimeSpan? StartTime => Schedule.StartAt.UtcDateTime.TimeOfDay;
+
+    private static string Hour(int hour) => $"{hour.ToString("00", CultureInfo.InvariantCulture)}:00";
+
+    private Task SetStartDate(DateTime? date)
+    {
+        if (date is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var start = new DateTimeOffset(date.Value.Date + Schedule.StartAt.UtcDateTime.TimeOfDay, TimeSpan.Zero);
+        return ScheduleChanged.InvokeAsync(Schedule with { StartAt = start });
+    }
+
+    private Task SetStartTime(TimeSpan? time)
+    {
+        if (time is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var start = new DateTimeOffset(Schedule.StartAt.UtcDateTime.Date + time.Value, TimeSpan.Zero);
+        return ScheduleChanged.InvokeAsync(Schedule with { StartAt = start });
+    }
+
+    private Task SetPerMinute(int perMinute) =>
+        ScheduleChanged.InvokeAsync(Schedule with { PerMinute = Math.Max(perMinute, 1) });
+
+    private Task SetQuietStart(int hour) => ScheduleChanged.InvokeAsync(Schedule with { QuietStartHour = hour });
+
+    private Task SetQuietEnd(int hour) => ScheduleChanged.InvokeAsync(Schedule with { QuietEndHour = hour });
+
+    private Task SetHoldout(double share) =>
+        ScheduleChanged.InvokeAsync(Schedule with { HoldoutShare = Math.Round(share, 2) });
+}

@@ -1,0 +1,24 @@
+.review-line {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 0.875rem;
+}
+
+.review-field {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.review-label {
+  flex: 0 0 7.5rem;
+  color: var(--mud-palette-text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

@@ -1,0 +1,120 @@
+@using System.Globalization
+
+@* Everything that would be saved, in words. Read only. *@
+
+<MudStack Spacing="3">
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Audience</MudText>
+        @foreach (var line in RuleText.Lines(Rule))
+        {
+            <div class="review-line" style="@($"padding-left:{line.Depth * 20}px")">@line.Text</div>
+        }
+        @if (Estimate is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mt-2">
+                @Estimate.Matched.ToString("N0", CultureInfo.InvariantCulture)
+                of @Estimate.Total.ToString("N0", CultureInfo.InvariantCulture) users,
+                @Estimate.Share.ToString("P1", CultureInfo.InvariantCulture) of the base
+            </MudText>
+        }
+    </MudPaper>
+
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Message</MudText>
+        <MudText Typo="Typo.body2">Channels: @ChannelText</MudText>
+        @if (Channels.HasFlag(Channels.Push))
+        {
+            <div class="review-field"><span class="review-label">Push title</span>@Or(Message.PushTitle)</div>
+            <div class="review-field"><span class="review-label">Push body</span>@Or(Message.PushBody)</div>
+        }
+        @if (Channels.HasFlag(Channels.Email))
+        {
+            <div class="review-field"><span class="review-label">Email subject</span>@Or(Message.EmailSubject)</div>
+            <div class="review-field"><span class="review-label">Email body</span>@Or(Message.EmailBody)</div>
+        }
+    </MudPaper>
+
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudText Typo="Typo.subtitle1" Class="mb-2">Schedule</MudText>
+        <div class="review-field">
+            <span class="review-label">Start</span>
+            @Schedule.StartAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) UTC
+        </div>
+        <div class="review-field">
+            <span class="review-label">Rate</span>
+            @Schedule.PerMinute.ToString("N0", CultureInfo.InvariantCulture) per minute
+        </div>
+        <div class="review-field">
+            <span class="review-label">Quiet hours</span>
+            @(Schedule.HasQuietHours
+                ? $"{Schedule.QuietStartHour.ToString("00", CultureInfo.InvariantCulture)}:00 to {Schedule.QuietEndHour.ToString("00", CultureInfo.InvariantCulture)}:00 local"
+                : "none")
+        </div>
+        <div class="review-field">
+            <span class="review-label">Holdout</span>
+            @Schedule.HoldoutShare.ToString("P0", CultureInfo.InvariantCulture)
+        </div>
+    </MudPaper>
+
+    @if (Problems.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true">
+            @foreach (var problem in Problems)
+            {
+                <div>@problem</div>
+            }
+        </MudAlert>
+    }
+
+    @if (Dirty)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true">Save the draft before submitting it for approval.</MudAlert>
+    }
+
+    <div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
+                   OnClick="OnSubmit" Disabled="@(!CanSubmit)">
+            Submit for approval
+        </MudButton>
+    </div>
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public Rule Rule { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public MessageTemplate Message { get; set; } = MessageTemplate.Empty;
+
+    [Parameter]
+    public Channels Channels { get; set; }
+
+    [Parameter, EditorRequired]
+    public Schedule Schedule { get; set; } = new(DateTimeOffset.UnixEpoch, 600, 22, 8, 0.05);
+
+    [Parameter]
+    public AudienceEstimate? Estimate { get; set; }
+
+    /// <summary>Rule and message validation errors together.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Problems { get; set; } = [];
+
+    [Parameter]
+    public bool Dirty { get; set; }
+
+    [Parameter]
+    public bool CanSubmit { get; set; }
+
+    [Parameter]
+    public EventCallback OnSubmit { get; set; }
+
+    private string ChannelText => Channels switch
+    {
+        Channels.Both => "push and email",
+        Channels.Push => "push",
+        Channels.Email => "email",
+        _ => "none",
+    };
+
+    private static string Or(string text) => text.Length == 0 ? "empty" : text;
+}

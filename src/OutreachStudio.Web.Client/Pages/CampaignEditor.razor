@@ -1,0 +1,425 @@
+@page "/campaigns/{Id:guid}/edit"
+@rendermode InteractiveAuto
+@using System.Diagnostics
+@using System.Globalization
+@implements IDisposable
+@inject ICampaignEditorApi Api
+@inject IAudienceSource Audience
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Campaign editor</PageTitle>
+
+@* The app uses per page interactivity, so the providers belong to the interactive page. *@
+<MudPopoverProvider />
+<MudSnackbarProvider />
+
+@if (_model is null)
+{
+    <MudStack Spacing="3">
+        <MudSkeleton Width="40%" Height="48px" />
+        <MudSkeleton Width="100%" Height="40px" />
+        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="320px" />
+    </MudStack>
+}
+else
+{
+    <MudStack Spacing="3">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                @if (Editable)
+                {
+                    <MudTextField T="string" Value="_name" ValueChanged="SetName" Immediate="true" Label="Name"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:280px" />
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5">@_name</MudText>
+                }
+                <MudChip T="string" Size="Size.Small" Color="@StatusColour" Variant="Variant.Filled">@_model.Status</MudChip>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">version @_version</MudChip>
+                @if (_dirty)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning">unsaved</MudChip>
+                }
+                <MudSpacer />
+                <MudButton Variant="Variant.Text" Href="@($"/campaigns/{Id}")">Open campaign</MudButton>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Save" OnClick="Save"
+                           Disabled="@(!Editable || _busy)">
+                    Save
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
+                           OnClick="Submit" Disabled="@(!CanSubmit || _busy)">
+                    Submit for approval
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        @if (!Editable)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Version @_version is @_model.Status, so it is read only. Only a draft can be edited.
+            </MudAlert>
+        }
+
+        <MudTabs Elevation="0" Outlined="true"
+                 ActivePanelIndex="_tab" ActivePanelIndexChanged="SetTab">
+            <MudTabPanel Text="Audience" PanelClass="pa-4">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" lg="7">
+                        <MudPaper Outlined="true" Class="pa-4">
+                            <RuleTreeEditor Rule="_rule" RuleChanged="SetRule" Disabled="@(!Editable)" />
+                            @if (_ruleErrors.Count > 0)
+                            {
+                                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+                                    @foreach (var error in _ruleErrors)
+                                    {
+                                        <div>@error</div>
+                                    }
+                                </MudAlert>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" lg="5">
+                        <AudiencePanel Rule="_rule"
+                                       Estimate="_estimate"
+                                       Now="_estimatedAt"
+                                       Computing="_estimating"
+                                       ElapsedMs="_estimateMs"
+                                       BlastRadiusShare="_model.BlastRadiusShare"
+                                       Selected="_selected"
+                                       SelectedChanged="SetSelected"
+                                       DownloadMs="_downloadMs"
+                                       DownloadBytes="_downloadBytes" />
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Message" PanelClass="pa-4">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" lg="7">
+                        <MessageEditor Message="_message" MessageChanged="SetMessage"
+                                       Channels="_channels" ChannelsChanged="SetChannels"
+                                       Errors="_messageErrors" Disabled="@(!Editable)" />
+                    </MudItem>
+                    <MudItem xs="12" lg="5">
+                        <DevicePreview Message="_message" Channels="_channels"
+                                       Sample="Sample" User="_selected" UserChanged="SetSelected" />
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Schedule" PanelClass="pa-4">
+                <MudStack Spacing="3">
+                    <SchedulePanel Schedule="_schedule" ScheduleChanged="SetSchedule" Disabled="@(!Editable)" />
+                    <RolloutCurve CampaignId="Id" Matched="_matched" Schedule="_schedule" />
+                </MudStack>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Review" PanelClass="pa-4">
+                <ReviewPanel Rule="_rule" Message="_message" Channels="_channels" Schedule="_schedule"
+                             Estimate="_estimate" Problems="Problems" Dirty="_dirty"
+                             CanSubmit="@(CanSubmit && !_busy)" OnSubmit="Submit" />
+            </MudTabPanel>
+        </MudTabs>
+    </MudStack>
+}
+
+@code {
+    private const int DebounceMs = 250;
+    private const int ScheduleTab = 2;
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private readonly CancellationTokenSource _page = new();
+    private CancellationTokenSource? _debounce;
+
+    private CampaignEditorModel? _model;
+    private CampaignEdit? _saved;
+    private IReadOnlyList<AudienceUser> _users = [];
+
+    private string _name = "";
+    private Rule _rule = new AndRule([]);
+    private MessageTemplate _message = MessageTemplate.Empty;
+    private Schedule _schedule = new(DateTimeOffset.UnixEpoch, 600, 22, 8, 0.05);
+    private Channels _channels = Channels.Push;
+    private int _version;
+    private int _tab;
+    private bool _busy;
+    private bool _dirty;
+
+    private AudienceEstimate? _estimate;
+    private IReadOnlyList<AudienceUser> _matched = [];
+    private Rule? _matchedFor;
+    private AudienceUser? _selected;
+    private DateTimeOffset _estimatedAt = DateTimeOffset.UtcNow;
+    private long _estimateMs;
+    private bool _estimating;
+    private long? _downloadMs;
+    private long? _downloadBytes;
+
+    private IReadOnlyList<string> _ruleErrors = [];
+    private IReadOnlyList<string> _messageErrors = [];
+
+    private bool Editable => _model?.Editable ?? false;
+
+    private IReadOnlyList<AudienceUser> Sample => _estimate?.Sample ?? [];
+
+    private IReadOnlyList<string> Problems => [.. _ruleErrors, .. _messageErrors];
+
+    private bool CanSubmit => Editable && !_dirty && Problems.Count == 0;
+
+    private Color StatusColour => _model?.Status switch
+    {
+        CampaignStatus.Draft => Color.Default,
+        CampaignStatus.InReview => Color.Info,
+        CampaignStatus.Approved => Color.Success,
+        CampaignStatus.Scheduled => Color.Info,
+        CampaignStatus.Sending => Color.Primary,
+        CampaignStatus.Done => Color.Success,
+        CampaignStatus.Failed => Color.Error,
+        _ => Color.Default,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var model = await Api.GetAsync(Id, _page.Token);
+            Apply(model);
+
+            // The prerender pass paints the shell only. The audience is a large list and on the
+            // server pass it comes from the database, so it waits until the page is interactive.
+            if (RendererInfo.IsInteractive)
+            {
+                _users = await Audience.LoadAsync(_page.Token);
+                if (Audience is IAudienceDownloadStats stats)
+                {
+                    _downloadMs = stats.ElapsedMs;
+                    _downloadBytes = stats.Bytes;
+                }
+
+                Estimate();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left while it was loading.
+        }
+        catch (HttpRequestException error)
+        {
+            Snackbar.Add($"Could not load the campaign: {error.Message}", Severity.Error);
+        }
+    }
+
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _page.Cancel();
+        _page.Dispose();
+    }
+
+    private void Apply(CampaignEditorModel model)
+    {
+        _model = model;
+        _version = model.Version;
+        _name = model.Current.Name;
+        _rule = RuleEdit.AsGroup(Rule.FromJson(model.Current.RuleJson));
+        _message = model.Current.Message;
+        _schedule = model.Current.Schedule;
+        _channels = model.Current.Channels;
+        _saved = Build();
+        _dirty = false;
+        Validate();
+    }
+
+    private CampaignEdit Build() => new(_name, _rule.ToJson(), _channels, _message, _schedule);
+
+    private void Validate()
+    {
+        _ruleErrors = RuleValidator.Validate(_rule);
+        _messageErrors = Personalisation.Validate(_message);
+    }
+
+    private void Touch()
+    {
+        Validate();
+        _dirty = _saved is null || Build() != _saved;
+    }
+
+    private void SetName(string name)
+    {
+        _name = name;
+        Touch();
+    }
+
+    private void SetTab(int tab)
+    {
+        _tab = tab;
+        SelectMatched();
+    }
+
+    private void SetSelected(AudienceUser? user) => _selected = user;
+
+    private void SetMessage(MessageTemplate message)
+    {
+        _message = message;
+        Touch();
+    }
+
+    private void SetChannels(Channels channels)
+    {
+        _channels = channels;
+        Touch();
+    }
+
+    private void SetSchedule(Schedule schedule)
+    {
+        _schedule = schedule;
+        Touch();
+    }
+
+    private async Task SetRule(Rule rule)
+    {
+        _rule = rule;
+        Touch();
+        await Debounce();
+    }
+
+    /// <summary>
+    /// The only debounce in the editor. Every rule edit restarts it, so a fast typist pays for one
+    /// pass over the user base rather than one per keystroke.
+    /// </summary>
+    private async Task Debounce()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _debounce = CancellationTokenSource.CreateLinkedTokenSource(_page.Token);
+        var token = _debounce.Token;
+
+        _estimating = true;
+        try
+        {
+            await Task.Delay(DebounceMs, token);
+            Estimate();
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer edit arrived, or the page was left.
+        }
+    }
+
+    /// <summary>
+    /// One pass over the whole user base with the same assembly the worker uses. In the browser
+    /// this runs on the WebAssembly runtime, on the first visit it runs on the server circuit.
+    /// </summary>
+    private void Estimate()
+    {
+        _estimating = false;
+        if (_ruleErrors.Count > 0 || _users.Count == 0)
+        {
+            _estimate = null;
+            _matched = [];
+            _matchedFor = null;
+            _selected = null;
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var watch = Stopwatch.StartNew();
+        var estimate = AudienceEstimate.Compute(_rule, _users, now, 10);
+        watch.Stop();
+
+        _estimate = estimate;
+        _estimatedAt = now;
+        _estimateMs = watch.ElapsedMilliseconds;
+        _selected = estimate.Sample.Count > 0 ? estimate.Sample[0] : null;
+        SelectMatched();
+    }
+
+    /// <summary>
+    /// The rollout curve needs the whole matched set, which is a second pass over the user base.
+    /// It runs only while the schedule tab is open and only once per rule.
+    /// </summary>
+    private void SelectMatched()
+    {
+        if (_tab != ScheduleTab || _estimate is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_matchedFor, _rule))
+        {
+            return;
+        }
+
+        _matched = [.. AudienceEstimate.Select(_rule, _users, _estimatedAt)];
+        _matchedFor = _rule;
+    }
+
+    private async Task Save()
+    {
+        if (!Editable || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _version = await Api.SaveAsync(Id, Build(), _page.Token);
+            _saved = Build();
+            _dirty = false;
+            Snackbar.Add($"Saved as version {_version.ToString(CultureInfo.InvariantCulture)}", Severity.Success);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left while saving.
+        }
+        catch (HttpRequestException error)
+        {
+            Snackbar.Add($"Could not save: {error.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (!CanSubmit || _busy)
+        {
+            return;
+        }
+
+        await Save();
+        if (_dirty || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await Api.SubmitAsync(Id, _page.Token);
+            Snackbar.Add("Submitted for approval", Severity.Success);
+            Nav.NavigateTo($"/campaigns/{Id}");
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left while submitting.
+        }
+        catch (HttpRequestException error)
+        {
+            Snackbar.Add($"Could not submit: {error.Message}", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

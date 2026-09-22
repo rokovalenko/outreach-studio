@@ -1,0 +1,127 @@
+@* What the message looks like on a lock screen and in an inbox, for the selected sample user. *@
+
+<MudStack Spacing="3">
+    <MudPaper Outlined="true" Class="pa-4">
+        <MudSelect T="int" Value="SelectedId" ValueChanged="Pick" ToStringFunc="NameOf"
+                   Label="Preview as" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                   Disabled="@(Sample.Count == 0)">
+            @foreach (var user in Sample)
+            {
+                <MudSelectItem T="int" Value="@user.Id">@user.FirstName, @user.Country, @user.Tier</MudSelectItem>
+            }
+        </MudSelect>
+        @if (User is null)
+        {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                No matched user yet, so tokens are shown as written.
+            </MudText>
+        }
+    </MudPaper>
+
+    @if (ShowPush)
+    {
+        <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+                <div class="phone-time">9:41</div>
+                <div class="phone-date">Tuesday, 22 September</div>
+                <div class="notification">
+                    <div class="notification-app">Rewards</div>
+                    <div class="notification-title">@Render(Message.PushTitle, "Push title")</div>
+                    <div class="notification-body">@Render(Message.PushBody, "Push body")</div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (ShowEmail)
+    {
+        <MudPaper Outlined="true" Class="pa-0">
+            <div class="inbox-row">
+                <div class="inbox-avatar">R</div>
+                <div class="inbox-text">
+                    <div class="inbox-sender">Rewards</div>
+                    <div class="inbox-subject">@Render(Message.EmailSubject, "Email subject")</div>
+                    <div class="inbox-snippet">@FirstLine(Render(Message.EmailBody, "Email body"))</div>
+                </div>
+                <div class="inbox-time">09:41</div>
+            </div>
+            <div class="email-open">
+                <div class="email-subject">@Render(Message.EmailSubject, "Email subject")</div>
+                <div class="email-from">Rewards to @(User?.Email ?? "you@example.net")</div>
+                <div class="email-body">@Render(Message.EmailBody, "Email body")</div>
+            </div>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired]
+    public MessageTemplate Message { get; set; } = MessageTemplate.Empty;
+
+    [Parameter]
+    public Channels Channels { get; set; }
+
+    /// <summary>The sample from the last estimate, up to ten users.</summary>
+    [Parameter]
+    public IReadOnlyList<AudienceUser> Sample { get; set; } = [];
+
+    [Parameter]
+    public AudienceUser? User { get; set; }
+
+    [Parameter]
+    public EventCallback<AudienceUser?> UserChanged { get; set; }
+
+    private bool ShowPush => Channels.HasFlag(Channels.Push);
+
+    private bool ShowEmail => Channels.HasFlag(Channels.Email);
+
+    private int SelectedId => User?.Id ?? 0;
+
+    private string NameOf(int id)
+    {
+        foreach (var user in Sample)
+        {
+            if (user.Id == id)
+            {
+                return $"{user.FirstName}, {user.Country}, {user.Tier}";
+            }
+        }
+
+        return "no user";
+    }
+
+    private Task Pick(int id) => UserChanged.InvokeAsync(Sample.FirstOrDefault(u => u.Id == id));
+
+    /// <summary>
+    /// Renders the tokens for the selected user. An unknown token throws in the engine, which is
+    /// what the validation message says, so the preview falls back to the text as written.
+    /// </summary>
+    private string Render(string text, string placeholder)
+    {
+        if (text.Length == 0)
+        {
+            return placeholder;
+        }
+
+        if (User is null)
+        {
+            return text;
+        }
+
+        try
+        {
+            return Personalisation.Fill(text, User);
+        }
+        catch (InvalidOperationException)
+        {
+            return text;
+        }
+    }
+
+    private static string FirstLine(string text)
+    {
+        var end = text.IndexOf('\n', StringComparison.Ordinal);
+        return end < 0 ? text : text[..end];
+    }
+}
