@@ -47,7 +47,8 @@ public sealed partial class CampaignJourneyTests(StackFixture stack)
         // runtime is cached the next visit runs in the browser, which is the path this test is about.
         var runtime = page.WaitForResponseAsync(r => r.Url.Contains("dotnet.native", StringComparison.Ordinal) && r.Url.EndsWith(".wasm", StringComparison.Ordinal), new() { Timeout = 90_000 });
         await page.GotoAsync($"{stack.WebUrl}/campaigns/{id}/edit");
-        await Expect(page.GetByText("of 20,000 users")).ToBeVisibleAsync();
+        // The first editor render after a fresh seed loads the user base into the server cache.
+        await Expect(page.GetByText("of 20,000 users")).ToBeVisibleAsync(new() { Timeout = 60_000 });
         await runtime;
         await page.GotoAsync($"{stack.WebUrl}/campaigns/{id}/edit");
         await Expect(page.GetByText("evaluated in your browser")).ToBeVisibleAsync(new() { Timeout = 90_000 });
@@ -66,7 +67,7 @@ public sealed partial class CampaignJourneyTests(StackFixture stack)
         var page = await stack.NewPageAsync();
 
         await page.GotoAsync($"{stack.WebUrl}/campaigns/{id}/edit");
-        await Expect(page.GetByText("of 20,000 users")).ToBeVisibleAsync();
+        await Expect(page.GetByText("of 20,000 users")).ToBeVisibleAsync(new() { Timeout = 60_000 });
         await page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
         await Expect(page.GetByText("Saved as version")).ToBeVisibleAsync();
         await page.GetByRole(AriaRole.Button, new() { Name = "Submit for approval" }).First.ClickAsync();
@@ -78,8 +79,9 @@ public sealed partial class CampaignJourneyTests(StackFixture stack)
         await page.GetByRole(AriaRole.Button, new() { Name = "Schedule now" }).ClickAsync();
 
         await Expect(page).ToHaveURLAsync($"{stack.WebUrl}/campaigns/{id}/live");
-        await Expect(page.GetByText("Sending")).ToBeVisibleAsync(new() { Timeout = 60_000 });
-        await Expect(page.GetByText("push-a").First).ToBeVisibleAsync();
+        await Expect(page.GetByText("Sending", new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 60_000 });
+        // The about popover in the app bar also names push-a, hidden until opened.
+        await Expect(page.GetByText("push-a").Filter(new() { Visible = true }).First).ToBeVisibleAsync();
         await Expect(page.Locator("text=/user \\d+/").First).ToBeVisibleAsync(new() { Timeout = 60_000 });
 
         await page.GotoAsync($"{stack.WebUrl}/campaigns/{id}/results");
