@@ -28,7 +28,9 @@ Needs the .NET 10 SDK and Docker.
 dotnet run --project src/OutreachStudio.AppHost
 ```
 
-The log prints the Aspire dashboard URL with a login token. The web app is the `web` resource on that dashboard. The first start creates the database and seeds 20,000 users, about 400,000 events and twelve campaigns, which takes a few seconds. One seeded campaign is scheduled ninety seconds after the first start so the dashboard has a live send to look at.
+The log prints the Aspire dashboard URL with a login token. The web app is the `web` resource on that dashboard. The "why this exists" button in the app bar says what the app is for and what it sets out to prove.
+
+The Aspire dashboard talks to the AppHost over HTTPS with the ASP.NET Core developer certificate. If the dashboard shows "Lost connection to the AppHost", run `dotnet dev-certs https --trust`. On Linux the certificate lands in `~/.aspnet/dev-certs/trust` and OpenSSL only reads it when that directory is in `SSL_CERT_DIR`, so export `SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"` before running the AppHost. The first start creates the database and seeds 20,000 users, about 400,000 events and twelve campaigns, which takes a few seconds. One seeded campaign is scheduled ninety seconds after the first start so the dashboard has a live send to look at.
 
 Tests:
 
@@ -70,7 +72,31 @@ flowchart LR
 
 The audience snapshot the browser downloads is a binary stream, 2.5 MB compressed for 20,000 users with their events, because the same data as JSON took the WebAssembly interpreter twenty seconds to parse. It loads in about 1.5 seconds and a rule evaluates over all of it in about 250 ms in the browser, 15 ms on the server.
 
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) walks a campaign through the system. The decisions with alternatives are in the ADRs:
+## How a send works
+
+Scheduling a campaign is one transaction that evaluates the rule on the server, plans a due time per user and writes one `deliveries` row per user per channel. A unique index on campaign, user and channel makes a second row impossible. Workers claim due rows with `FOR UPDATE SKIP LOCKED` and run each one through the guardrails and the providers.
+
+```mermaid
+flowchart LR
+    S[schedule<br/>one transaction] --> Q[(deliveries<br/>Queued)]
+    Q --> C[worker claims<br/>SKIP LOCKED]
+    C --> G{consent, suppression,<br/>frequency cap}
+    G -- blocked --> SK[Skipped<br/>with reason]
+    G -- clear --> H{quiet hours}
+    H -- inside --> Q
+    H -- outside --> P[primary provider<br/>3 tries with backoff]
+    P -- ok --> SENT[Sent]
+    P -- all fail --> F[secondary provider<br/>1 try]
+    F -- ok --> SENT
+    F -- fail --> R{3 passes?}
+    R -- no --> Q
+    R -- yes --> D[Failed<br/>dead letter]
+    SENT -- receipts --> DL[Delivered, Opened]
+```
+
+The campaign follows its rows: Draft, InReview, Approved, Scheduled, then Sending when a worker processes the first row, then Done or Failed when no row is left in the queue. Every status change fires `pg_notify`, which is what the live board listens to.
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) walks a campaign through the system with a diagram per mechanism: the campaign state machine, the scheduling transaction and the claim loop, the delivery pipeline with retries and failover, receipts and the live board, render modes and the audience estimate. The decisions with alternatives are in the ADRs:
 
 - [ADR-001](docs/adr/0001-blazor-web-app-with-a-shared-engine-assembly.md) Blazor Web App with interactive auto and one engine assembly for the browser and the server
 - [ADR-002](docs/adr/0002-rule-tree-as-a-typed-ast-interpreted-in-place.md) The rule tree is a typed AST interpreted in place
@@ -78,8 +104,6 @@ The audience snapshot the browser downloads is a binary stream, 2.5 MB compresse
 - [ADR-004](docs/adr/0004-guardrails-run-at-send-time-in-the-worker.md) Guardrails run at send time in the worker
 - [ADR-005](docs/adr/0005-mock-providers-as-a-service-with-chaos-toggles.md) Mock providers are a separate service with chaos toggles
 - [ADR-006](docs/adr/0006-observability-shape-and-the-live-board.md) One span per delivery, funnel counts as metrics, a live board fed by Postgres notifications
-
-[docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md) records how coding agents were used to build the repo and what they got wrong.
 
 ## Data
 
