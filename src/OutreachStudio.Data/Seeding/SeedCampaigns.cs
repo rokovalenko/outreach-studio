@@ -1,4 +1,5 @@
 using OutreachStudio.Engine.Audience;
+using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Engine.Rules;
 
 namespace OutreachStudio.Data.Seeding;

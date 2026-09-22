@@ -4,6 +4,7 @@ using Npgsql;
 using NpgsqlTypes;
 using OutreachStudio.Data.Synthetic;
 using OutreachStudio.Engine.Audience;
+using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Engine.Messaging;
 using OutreachStudio.Engine.Rules;
 using OutreachStudio.Engine.Scheduling;

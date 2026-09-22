@@ -1,4 +1,5 @@
 using OutreachStudio.Data;
+using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Data.Seeding;
 using OutreachStudio.Data.Synthetic;
 using OutreachStudio.Engine.Messaging;

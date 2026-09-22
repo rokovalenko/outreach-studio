@@ -1,17 +1,13 @@
 using OutreachStudio.Engine.Audience;
+using OutreachStudio.Engine.Campaigns;
 using OutreachStudio.Engine.Messaging;
 using OutreachStudio.Engine.Scheduling;
 
 namespace OutreachStudio.Data;
 
-public enum CampaignStatus { Draft, InReview, Approved, Scheduled, Sending, Done, Failed }
-
 public enum DeliveryStatus { Queued, Claimed, Sent, Delivered, Opened, Failed, Skipped, Holdout }
 
 public enum SkipReason { None, ConsentRevoked, Suppressed, FrequencyCap }
-
-[Flags]
-public enum Channels { None = 0, Push = 1, Email = 2, Both = Push | Email }
 
 public sealed class User
 {
