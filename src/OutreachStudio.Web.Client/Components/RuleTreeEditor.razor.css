@@ -1,7 +1,7 @@
 .rule-group-nested {
   margin-left: 12px;
   padding: 8px 8px 8px 12px;
-  border-left: 3px solid var(--mud-palette-primary);
+  border-left: 1px solid var(--mud-palette-lines-default);
   border-radius: 0 6px 6px 0;
   background: var(--mud-palette-background-gray);
 }
