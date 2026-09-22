@@ -28,13 +28,13 @@ public interface IAudienceSource
     Task<IReadOnlyList<AudienceUser>> LoadAsync(CancellationToken ct = default);
 }
 
+/// <summary>BlastRadiusShare is the share of the base above which the warning shows and two approvals are needed.</summary>
 public sealed record CampaignEditorModel(
     Guid Id,
     string Name,
     CampaignStatus Status,
     int Version,
     CampaignEdit Current,
-    /// <summary>Share of the base above which the blast radius warning shows and two approvals are needed.</summary>
     double BlastRadiusShare)
 {
     public bool Editable => Status is CampaignStatus.Draft;
