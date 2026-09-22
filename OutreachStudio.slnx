@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OutreachStudio.AppHost/OutreachStudio.AppHost.csproj" />
+    <Project Path="src/OutreachStudio.Data/OutreachStudio.Data.csproj" />
+    <Project Path="src/OutreachStudio.Engine/OutreachStudio.Engine.csproj" />
+    <Project Path="src/OutreachStudio.Providers/OutreachStudio.Providers.csproj" />
+    <Project Path="src/OutreachStudio.ServiceDefaults/OutreachStudio.ServiceDefaults.csproj" />
+    <Project Path="src/OutreachStudio.Web.Client/OutreachStudio.Web.Client.csproj" />
+    <Project Path="src/OutreachStudio.Web/OutreachStudio.Web.csproj" />
+    <Project Path="src/OutreachStudio.Worker/OutreachStudio.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OutreachStudio.E2E/OutreachStudio.E2E.csproj" />
+    <Project Path="tests/OutreachStudio.Engine.Tests/OutreachStudio.Engine.Tests.csproj" />
+    <Project Path="tests/OutreachStudio.Worker.Tests/OutreachStudio.Worker.Tests.csproj" />
+  </Folder>
+</Solution>

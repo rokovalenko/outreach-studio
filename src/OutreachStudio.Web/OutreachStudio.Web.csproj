@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../OutreachStudio.Web.Client/OutreachStudio.Web.Client.csproj" />
+    <ProjectReference Include="../OutreachStudio.Data/OutreachStudio.Data.csproj" />
+    <ProjectReference Include="../OutreachStudio.ServiceDefaults/OutreachStudio.ServiceDefaults.csproj" />
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+</Project>

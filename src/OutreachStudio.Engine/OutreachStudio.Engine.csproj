@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Referenced by the browser (WASM) and the server. Keep it free of package dependencies. -->
+
+</Project>
