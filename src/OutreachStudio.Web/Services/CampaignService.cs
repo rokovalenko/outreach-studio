@@ -142,9 +142,10 @@ public sealed class CampaignService(OutreachDbContext db, AudienceCache audience
         }
         var current = Current(campaign);
         var now = DateTimeOffset.UtcNow;
-        // Round trip the rule so whitespace and property order do not count as a change.
+        // Both sides go through the serialiser, because the stored copy comes back from jsonb with
+        // its whitespace gone and its keys reordered and would otherwise never compare equal.
         var ruleJson = Rule.FromJson(edit.RuleJson).ToJson();
-        var changed = ruleJson != current.RuleJson
+        var changed = ruleJson != Rule.FromJson(current.RuleJson).ToJson()
             || edit.Channels != current.Channels
             || edit.Message != current.Message
             || edit.Schedule != current.Schedule;

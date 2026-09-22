@@ -30,7 +30,7 @@ else
         </MudPaper>
 
         <MudGrid Spacing="3">
-            <MudItem xs="12" md="4">
+            <MudItem xs="12" md="3">
                 <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
                     <MudText Typo="Typo.subtitle2" Class="mb-2">Skipped by reason</MudText>
                     @if (Results.Skips.Count == 0)
@@ -44,7 +44,7 @@ else
                                 @foreach (var (reason, count) in Results.Skips.OrderByDescending(s => s.Value))
                                 {
                                     <tr>
-                                        <td>@reason</td>
+                                        <td>@Format.Words(reason.ToString())</td>
                                         <td class="num" style="text-align:right">@Format.Number(count)</td>
                                     </tr>
                                 }
@@ -56,7 +56,7 @@ else
                     </MudText>
                 </MudPaper>
             </MudItem>
-            <MudItem xs="12" md="4">
+            <MudItem xs="12" md="5">
                 <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
                     <MudText Typo="Typo.subtitle2" Class="mb-2">By channel</MudText>
                     <MudSimpleTable Dense="true" Elevation="0">

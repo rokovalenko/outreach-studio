@@ -21,6 +21,13 @@ public static class Format
 
     public static string Share(double share) => (share * 100).ToString("0.0", CultureInfo.InvariantCulture) + "%";
 
+    /// <summary>An enum name as a phrase, so ConsentRevoked reads as consent revoked.</summary>
+    public static string Words(string name)
+    {
+        var text = string.Concat(name.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + char.ToLowerInvariant(c) : c.ToString()));
+        return text;
+    }
+
     public static string Countdown(TimeSpan left) => left <= TimeSpan.Zero
         ? "now"
         : left.TotalHours >= 1

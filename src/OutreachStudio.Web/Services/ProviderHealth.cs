@@ -1,8 +1,5 @@
-using System.Data;
-using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NpgsqlTypes;
-using OutreachStudio.Data;
 
 namespace OutreachStudio.Web.Services;
 
@@ -15,8 +12,10 @@ public sealed record ProviderStats(string Provider, int Calls, int Ok, int Media
 /// <summary>
 /// Health for the four providers, read from delivery_attempts. The median is a percentile_cont in
 /// Postgres rather than a scan in C#, because the attempts table is the largest one in the database.
+/// It opens its own connection instead of borrowing the request's DbContext, because the tiles
+/// render while the page around them is still waiting for its own query.
 /// </summary>
-public sealed class ProviderHealth(OutreachDbContext db)
+public sealed class ProviderHealth(IConfiguration configuration)
 {
     public static readonly string[] Providers = ["push-a", "push-b", "email-a", "email-b"];
 
@@ -25,11 +24,8 @@ public sealed class ProviderHealth(OutreachDbContext db)
 
     public async Task<IReadOnlyList<ProviderStats>> ReadAsync(TimeSpan window, CancellationToken ct)
     {
-        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
-        if (connection.State is not ConnectionState.Open)
-        {
-            await connection.OpenAsync(ct);
-        }
+        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("outreach"));
+        await connection.OpenAsync(ct);
         await using var command = new NpgsqlCommand("""
             SELECT provider,
                    count(*) AS calls,

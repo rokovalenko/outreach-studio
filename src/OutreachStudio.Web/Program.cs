@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor;
 using MudBlazor.Services;
 using OutreachStudio.Data;
 using OutreachStudio.Data.Seeding;
@@ -13,8 +14,19 @@ using OutreachStudio.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddNpgsqlDbContext<OutreachDbContext>("outreach");
-builder.Services.AddMudServices();
+// The context is registered by hand and then enriched, because Aspire's AddNpgsqlDbContext pools
+// contexts and a pooled context may not set its own options, which is where the snake_case naming
+// convention lives. Retries are off because the schedule pass opens its own transaction and a
+// retrying execution strategy refuses to run inside one.
+builder.Services.AddDbContext<OutreachDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("outreach")));
+builder.EnrichNpgsqlDbContext<OutreachDbContext>(settings => settings.DisableRetry = true);
+// Messages come up in the bottom corner because the page actions live in the top one.
+builder.Services.AddMudServices(mud =>
+{
+    mud.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight;
+    mud.SnackbarConfiguration.VisibleStateDuration = 3000;
+});
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
@@ -38,7 +50,7 @@ builder.Services.AddSingleton<DeliveryFeed>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<DeliveryFeed>());
 builder.Services.AddScoped<CampaignService>();
 builder.Services.AddScoped<ICampaignEditorApi, ServerCampaignEditorApi>();
-builder.Services.AddScoped<ProviderHealth>();
+builder.Services.AddSingleton<ProviderHealth>();
 builder.Services.AddScoped<SuppressionService>();
 builder.Services.AddScoped<ChaosClient>();
 
@@ -63,7 +75,10 @@ else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+// A 404 from the JSON endpoints is an answer, so only the pages get the not found page rendered
+// over their status code.
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api"), pages =>
+    pages.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
 app.UseMiddleware<InvalidStateMiddleware>();
 app.UseAntiforgery();
 
