@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using OutreachStudio.Engine.Audience;
 using OutreachStudio.Data;
 using OutreachStudio.Web.Client.Api;
 using OutreachStudio.Web.Services;
@@ -43,10 +44,16 @@ public static class Endpoints
             return Results.NoContent();
         });
 
-        // A few megabytes of users, compressed on the way out. The browser keeps it for the session
-        // so the live count in the rule builder never calls back.
+        // The whole user base in the engine's binary format (see AudienceSnapshotFormat), compressed
+        // on the way out. The browser keeps it for the session so the live count never calls back.
         app.MapGet("/api/audience", async (AudienceCache audience, CancellationToken ct) =>
-            Results.Json(await audience.LoadAsync(ct), Json));
+        {
+            var users = await audience.LoadAsync(ct);
+            var stream = new MemoryStream();
+            AudienceSnapshotFormat.Write(stream, users);
+            stream.Position = 0;
+            return Results.Stream(stream, "application/octet-stream");
+        });
 
         app.MapPost("/api/receipts", async (ReceiptPost receipt, OutreachDbContext db, CancellationToken ct) =>
         {

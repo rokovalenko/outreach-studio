@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http.Json;
 using OutreachStudio.Engine.Audience;
 
 namespace OutreachStudio.Web.Client.Api;
@@ -34,7 +33,7 @@ public sealed class HttpAudienceSource(HttpClient http) : IAudienceSource, IAudi
                 using var response = await http.GetAsync("api/audience", ct);
                 response.EnsureSuccessStatusCode();
                 var bytes = response.Content.Headers.ContentLength;
-                var users = await response.Content.ReadFromJsonAsync<List<AudienceUser>>(JsonDefaults.Web, ct);
+                var users = AudienceSnapshotFormat.Read(await response.Content.ReadAsStreamAsync(ct));
                 watch.Stop();
                 ElapsedMs = watch.ElapsedMilliseconds;
                 Bytes = bytes;

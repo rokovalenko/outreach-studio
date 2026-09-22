@@ -32,7 +32,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
-    options.MimeTypes = ["application/json"];
+    options.MimeTypes = ["application/json", "application/octet-stream"];
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });

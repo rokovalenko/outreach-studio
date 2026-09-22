@@ -69,7 +69,7 @@ public static class SyntheticUsers
             var events = GenerateEvents(rng, activeUntil, activity, signup);
             var lastEvent = events.Values.Where(v => v.Length > 0).Select(v => v[^1]).DefaultIfEmpty(0).Max();
             var lastActive = lastEvent == 0 ? signup : DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeSeconds(lastEvent).UtcDateTime);
-            var platform = rng.NextDouble() switch { < 0.45 => Platform.Android, < 0.8 => Platform.Ios, _ => Platform.Web };
+            var platform = rng.NextDouble() switch { < 0.45 => Platform.Android, < 0.8 => Platform.iOS, _ => Platform.Web };
             var consent = rng.NextDouble() < 0.82;
             var points = (int)(rng.NextDouble() * rng.NextDouble() * 6000 * (1 + (int)tier));
 

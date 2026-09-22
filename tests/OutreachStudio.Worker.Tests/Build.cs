@@ -48,7 +48,7 @@ public static class Build
         Tier = Tier.Gold,
         SignupDate = new DateOnly(2025, 1, 1),
         LastActive = DateOnly.FromDateTime(DateTime.UtcNow),
-        Platform = Platform.Ios,
+        Platform = Platform.iOS,
         MarketingConsent = consent,
         TimeZone = timeZone,
         PointsBalance = 120,

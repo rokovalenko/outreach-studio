@@ -2,7 +2,7 @@ namespace OutreachStudio.Engine.Audience;
 
 public enum Tier { Bronze, Silver, Gold, Platinum }
 
-public enum Platform { Ios, Android, Web }
+public enum Platform { iOS, Android, Web }
 
 public enum EventType { PointsEarned, RewardClaimed, MissionCompleted, Purchase, Login, CampaignOpened }
 

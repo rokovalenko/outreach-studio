@@ -149,7 +149,7 @@ public static class SeedCampaigns
 
         new("iOS survey", CampaignStatus.Draft, 2,
             new AndRule([
-                new AttributeCompare("platform", CompareOp.Eq, "Ios"),
+                new AttributeCompare("platform", CompareOp.Eq, "iOS"),
                 new EventCountInWindow(EventType.CampaignOpened, CompareOp.Gte, 1, 30),
             ]),
             Channels.Email,

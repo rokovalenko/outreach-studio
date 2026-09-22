@@ -7,7 +7,7 @@
 {
     <div class="breakdown-row">
         <span class="breakdown-key">@row.Key</span>
-        <MudProgressLinear Value="@(row.Value * 100d / Max)" Color="Color.Primary" Rounded="true" Class="breakdown-bar" />
+        <span class="breakdown-bar"><span class="breakdown-fill" style="width: @((row.Value * 100d / Max).ToString("0.#", CultureInfo.InvariantCulture))%"></span></span>
         <span class="breakdown-count">@row.Value.ToString("N0", CultureInfo.InvariantCulture)</span>
     </div>
 }
