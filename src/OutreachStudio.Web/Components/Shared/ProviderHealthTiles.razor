@@ -42,13 +42,6 @@
         Fallback = await Health.ReadAsync(ProviderHealth.Fallback, CancellationToken.None);
     }
 
-    /// <summary>Called by the live board after a burst of sends, so the tiles do not go stale.</summary>
-    public async Task RefreshAsync()
-    {
-        await OnInitializedAsync();
-        StateHasChanged();
-    }
-
     private static Color Tone(double rate) => rate switch
     {
         >= 0.98 => Color.Success,

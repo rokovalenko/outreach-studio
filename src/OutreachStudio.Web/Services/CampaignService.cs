@@ -80,7 +80,7 @@ public sealed class CampaignService(OutreachDbContext db, AudienceCache audience
     {
         db.ChangeTracker.Clear();
         return await db.Campaigns.Include(c => c.Versions).Include(c => c.Approvals).FirstOrDefaultAsync(c => c.Id == id, ct)
-            ?? throw new InvalidOperationException($"No campaign {id}");
+            ?? throw new KeyNotFoundException($"No campaign {id}");
     }
 
     public static CampaignVersion Version(Campaign campaign, int number) =>

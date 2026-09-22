@@ -30,7 +30,7 @@ else
         </MudPaper>
 
         <MudGrid Spacing="3">
-            <MudItem xs="12" md="3">
+            <MudItem xs="12" md="6" lg="3">
                 <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
                     <MudText Typo="Typo.subtitle2" Class="mb-2">Skipped by reason</MudText>
                     @if (Results.Skips.Count == 0)
@@ -56,7 +56,31 @@ else
                     </MudText>
                 </MudPaper>
             </MudItem>
-            <MudItem xs="12" md="5">
+            <MudItem xs="12" md="6" lg="4">
+                <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">By provider</MudText>
+                    <MudSimpleTable Dense="true" Elevation="0">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th style="text-align:right">Sent</th>
+                                <th style="text-align:right">Failed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var provider in Results.ByProvider)
+                            {
+                                <tr>
+                                    <td>@provider.Provider</td>
+                                    <td class="num" style="text-align:right">@Format.Number(provider.Sent)</td>
+                                    <td class="num" style="text-align:right">@Format.Number(provider.Failed)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" lg="5">
                 <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
                     <MudText Typo="Typo.subtitle2" Class="mb-2">By channel</MudText>
                     <MudSimpleTable Dense="true" Elevation="0">
@@ -78,30 +102,6 @@ else
                                     <td class="num" style="text-align:right">@Format.Number(channel.Delivered)</td>
                                     <td class="num" style="text-align:right">@Format.Number(channel.Opened)</td>
                                     <td class="num" style="text-align:right">@Format.Number(channel.Failed)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </MudSimpleTable>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" md="4">
-                <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">By provider</MudText>
-                    <MudSimpleTable Dense="true" Elevation="0">
-                        <thead>
-                            <tr>
-                                <th>Provider</th>
-                                <th style="text-align:right">Sent</th>
-                                <th style="text-align:right">Failed</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var provider in Results.ByProvider)
-                            {
-                                <tr>
-                                    <td>@provider.Provider</td>
-                                    <td class="num" style="text-align:right">@Format.Number(provider.Sent)</td>
-                                    <td class="num" style="text-align:right">@Format.Number(provider.Failed)</td>
                                 </tr>
                             }
                         </tbody>

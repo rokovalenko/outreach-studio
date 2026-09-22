@@ -90,7 +90,10 @@ public static class Endpoints
     }
 }
 
-/// <summary>Turns the state machine's refusals into 409 instead of a 500 page.</summary>
+/// <summary>
+/// Turns the state machine's refusals into 409 and an unknown id into 404, so a client of the JSON
+/// endpoints reads a status code instead of a stack trace.
+/// </summary>
 public sealed class InvalidStateMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
@@ -99,9 +102,12 @@ public sealed class InvalidStateMiddleware(RequestDelegate next)
         {
             await next(context);
         }
-        catch (InvalidOperationException ex) when (context.Request.Path.StartsWithSegments("/api"))
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException
+                                   && context.Request.Path.StartsWithSegments("/api"))
         {
-            context.Response.StatusCode = StatusCodes.Status409Conflict;
+            context.Response.StatusCode = ex is KeyNotFoundException
+                ? StatusCodes.Status404NotFound
+                : StatusCodes.Status409Conflict;
             await context.Response.WriteAsJsonAsync(new { error = ex.Message });
         }
     }
