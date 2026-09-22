@@ -1,5 +1,5 @@
-@* Pages carry their own render mode, so the popover, dialog and snackbar hosts get an interactive
-   island of their own in the layout. They share the circuit with the page and therefore its services. *@
+@* Every interactive page renders these inside its own island, because the layout is static and the
+   editor page runs in WebAssembly where a server island's providers cannot reach it. *@
 
 <MudPopoverProvider />
 <MudDialogProvider CloseButton="true" Position="DialogPosition.Center" MaxWidth="MaxWidth.ExtraSmall" />

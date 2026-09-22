@@ -133,6 +133,7 @@ public static class DatabaseSeeder
                 rows.Add(row);
                 if (seed.Status is CampaignStatus.Scheduled)
                 {
+                    row.Status = planned.Holdout ? DeliveryStatus.Holdout : DeliveryStatus.Queued;
                     continue;
                 }
                 Resolve(row, user, planned.Holdout, channel, seed.Outcome, suppressed, rng, attempts, attemptIdOffset);

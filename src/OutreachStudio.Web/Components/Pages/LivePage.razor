@@ -3,7 +3,9 @@
 @implements IDisposable
 @inject CampaignService Campaigns
 @inject DeliveryFeed Feed
+@inject ProviderHealth Health
 
+<AppProviders />
 <PageTitle>@(Loaded ? Campaign.Name : "Live board")</PageTitle>
 
 @if (!Loaded)
@@ -47,7 +49,7 @@ else
             <MudItem xs="12" md="7">
                 <MudPaper Class="pa-4" Outlined="true">
                     <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                        <MudText Typo="Typo.subtitle2">Sends per second, last 60 s</MudText>
+                        <MudText Typo="Typo.subtitle2">Sends in the last 60 s</MudText>
                         <MudText Typo="Typo.h6" Class="num">@Throughput.Sum()</MudText>
                     </MudStack>
                     <Sparkline Values="@Throughput" Label="Sends per second over the last minute" />
@@ -55,16 +57,16 @@ else
             </MudItem>
             <MudItem xs="12" md="5">
                 <MudPaper Class="pa-4" Outlined="true">
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">Providers, since this page opened</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Provider calls in the last 60 s</MudText>
                     <MudSimpleTable Dense="true" Elevation="0">
                         <tbody>
-                            @foreach (var provider in ProviderHealth.Providers)
+                            @foreach (var stats in Providers)
                             {
-                                var tally = ByProvider.GetValueOrDefault(provider);
                                 <tr>
-                                    <td>@provider</td>
-                                    <td class="num">@tally.Ok ok</td>
-                                    <td class="num">@tally.Failed failed</td>
+                                    <td>@stats.Provider</td>
+                                    <td class="num">@stats.Ok ok</td>
+                                    <td class="num @(stats.Calls - stats.Ok > 0 ? "mud-error-text" : "")">@(stats.Calls - stats.Ok) failed</td>
+                                    <td class="num mud-text-secondary">@(stats.Calls > 0 ? $"{stats.MedianMs} ms" : "")</td>
                                 </tr>
                             }
                         </tbody>
@@ -120,13 +122,12 @@ else
     // Written from the notification thread and read from the render thread, so both take the lock.
     private readonly Lock gate = new();
     private readonly Dictionary<DeliveryStatus, int> counts = [];
-    private readonly Dictionary<string, (int Ok, int Failed)> byProvider = new(StringComparer.Ordinal);
     private readonly Queue<DeliveryEvent> stream = new();
     private readonly Queue<DateTimeOffset> sends = new();
     private CancellationTokenSource? ticker;
 
     private Dictionary<DeliveryStatus, int> Counts = [];
-    private Dictionary<string, (int Ok, int Failed)> ByProvider = new(StringComparer.Ordinal);
+    private IReadOnlyList<ProviderStats> Providers = [];
     private List<DeliveryEvent> Stream = [];
     private List<int> Throughput = [];
 
@@ -147,6 +148,7 @@ else
                 stream.Enqueue(received);
             }
         }
+        Providers = await Health.ReadAsync(TimeSpan.FromMinutes(1), CancellationToken.None);
         Publish();
         Loaded = true;
     }
@@ -182,8 +184,15 @@ else
                 // The database work runs on the renderer's dispatcher, because the context behind
                 // CampaignService belongs to this circuit and takes one operation at a time.
                 var refresh = ++ticks % 10 == 0;
+                // Attempt rows are the only place a failed primary call shows up, because the
+                // notification carries the provider that finally succeeded.
+                var providers = ticks % 5 == 0 ? await Health.ReadAsync(TimeSpan.FromMinutes(1), ct) : null;
                 await InvokeAsync(async () =>
                 {
+                    if (providers is not null)
+                    {
+                        Providers = providers;
+                    }
                     if (refresh)
                     {
                         var fresh = await Campaigns.CountsByStatusAsync(Id, ct);
@@ -220,11 +229,6 @@ else
             Bump(status, 1);
             // The trigger only sends the new status, so the row it came from is the one status before it.
             Bump(Previous(status), -1);
-            if (received.Provider is { Length: > 0 } provider)
-            {
-                var (ok, failed) = byProvider.GetValueOrDefault(provider);
-                byProvider[provider] = status is DeliveryStatus.Failed ? (ok, failed + 1) : (ok + 1, failed);
-            }
             if (status is DeliveryStatus.Sent)
             {
                 sends.Enqueue(received.At);
@@ -264,7 +268,6 @@ else
                 sends.Dequeue();
             }
             Counts = new Dictionary<DeliveryStatus, int>(counts);
-            ByProvider = new Dictionary<string, (int, int)>(byProvider, StringComparer.Ordinal);
             Stream = [.. stream.Reverse()];
             var buckets = new int[60];
             foreach (var at in sends)

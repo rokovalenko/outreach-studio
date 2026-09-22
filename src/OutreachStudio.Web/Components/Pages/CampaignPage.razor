@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
+<AppProviders />
 <PageTitle>@(Loaded ? Campaign.Name : "Campaign")</PageTitle>
 
 @if (!Loaded)
