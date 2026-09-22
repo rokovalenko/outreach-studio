@@ -1,0 +1,174 @@
+@page "/campaigns/{Id:guid}/results"
+@* Nothing on this page reacts to a click, so it stays static and costs no circuit. *@
+@inject CampaignService Campaigns
+
+<PageTitle>@(Loaded ? Campaign.Name : "Results")</PageTitle>
+
+@if (!Loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudStack Spacing="6">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <div>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                    <MudText Typo="Typo.h5">@Campaign.Name</MudText>
+                    <StatusChip Status="@Campaign.Status" />
+                </MudStack>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    @(Campaign.FinishedAt is null ? "Still running" : $"Finished {Format.Utc(Campaign.FinishedAt.Value)}")
+                </MudText>
+            </div>
+            <MudButton Variant="Variant.Outlined" Href="@($"/campaigns/{Id}")">Back to campaign</MudButton>
+        </MudStack>
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Funnel</MudText>
+            <Funnel Steps="@Steps" />
+        </MudPaper>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="6" lg="3">
+                <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Skipped by reason</MudText>
+                    @if (Results.Skips.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Nothing was skipped</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Elevation="0">
+                            <tbody>
+                                @foreach (var (reason, count) in Results.Skips.OrderByDescending(s => s.Value))
+                                {
+                                    <tr>
+                                        <td>@Format.Words(reason.ToString())</td>
+                                        <td class="num" style="text-align:right">@Format.Number(count)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-3">
+                        Holdout @Format.Number(Results.Holdout) users, never contacted
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6" lg="4">
+                <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">By provider</MudText>
+                    <MudSimpleTable Dense="true" Elevation="0">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th style="text-align:right">Sent</th>
+                                <th style="text-align:right">Failed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var provider in Results.ByProvider)
+                            {
+                                <tr>
+                                    <td>@provider.Provider</td>
+                                    <td class="num" style="text-align:right">@Format.Number(provider.Sent)</td>
+                                    <td class="num" style="text-align:right">@Format.Number(provider.Failed)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" lg="5">
+                <MudPaper Class="pa-4" Outlined="true" Style="height: 100%">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">By channel</MudText>
+                    <MudSimpleTable Dense="true" Elevation="0">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th style="text-align:right">Sent</th>
+                                <th style="text-align:right">Delivered</th>
+                                <th style="text-align:right">Opened</th>
+                                <th style="text-align:right">Failed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var channel in Results.ByChannel)
+                            {
+                                <tr>
+                                    <td>@channel.Channel</td>
+                                    <td class="num" style="text-align:right">@Format.Number(channel.Sent)</td>
+                                    <td class="num" style="text-align:right">@Format.Number(channel.Delivered)</td>
+                                    <td class="num" style="text-align:right">@Format.Number(channel.Opened)</td>
+                                    <td class="num" style="text-align:right">@Format.Number(channel.Failed)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Dead letters</MudText>
+            @if (Results.DeadLetters.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">No delivery ran out of attempts</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                    @Format.Number(Results.ByStatus.GetValueOrDefault(DeliveryStatus.Failed)) failed, showing the first @Results.DeadLetters.Count
+                </MudText>
+                <MudSimpleTable Dense="true" Elevation="0">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Channel</th>
+                            <th>Provider</th>
+                            <th style="text-align:right">Attempts</th>
+                            <th>Last error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var dead in Results.DeadLetters)
+                        {
+                            <tr>
+                                <td class="num">@dead.UserId</td>
+                                <td>@dead.Channel</td>
+                                <td>@dead.Provider</td>
+                                <td class="num" style="text-align:right">@dead.Attempts</td>
+                                <td class="mud-text-secondary">@dead.LastError</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudPaper>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Campaign Campaign = default!;
+    private CampaignResults Results = default!;
+    private bool Loaded;
+
+    private IReadOnlyList<Funnel.Step> Steps =>
+    [
+        new("Audience", Results.AudienceSize),
+        new("Queued", Results.Rows),
+        new("Sent", Results.Sent),
+        new("Delivered", Results.Delivered),
+        new("Opened", Results.Opened),
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Campaign = await Campaigns.LoadAsync(Id, CancellationToken.None);
+        Results = await Campaigns.ResultsAsync(Id, CancellationToken.None);
+        Loaded = true;
+    }
+}

@@ -1,0 +1,107 @@
+/* The few things MudBlazor has no component for: funnel bars, the sparkline, the rule tree and
+   the version diff. Everything else uses the theme variables so one palette drives the app. */
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.tile-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 90px;
+}
+
+.funnel-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--mud-palette-lines-default);
+  overflow: hidden;
+}
+
+.funnel-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--mud-palette-primary);
+}
+
+.funnel-fill.step-1 {
+  opacity: 0.75;
+}
+
+.funnel-fill.step-2 {
+  opacity: 0.55;
+}
+
+.funnel-fill.step-3 {
+  opacity: 0.4;
+}
+
+.funnel-fill.step-4 {
+  opacity: 0.28;
+}
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 90px;
+  align-items: center;
+  gap: 12px;
+}
+
+.sparkline {
+  width: 100%;
+  height: 56px;
+  display: block;
+}
+
+.rule-children {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid var(--mud-palette-lines-default);
+}
+
+.rule-op {
+  color: var(--mud-palette-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+}
+
+.diff-changed {
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.diff-json {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.diff-line {
+  padding: 0 6px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 76px 72px 62px 76px 96px 1fr;
+  gap: 8px;
+  font-size: 0.75rem;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.message-body {
+  white-space: pre-wrap;
+}

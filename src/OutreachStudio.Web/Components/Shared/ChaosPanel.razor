@@ -1,0 +1,48 @@
+@inject ChaosClient Chaos
+@inject ISnackbar Snackbar
+
+<MudGrid Spacing="3">
+    @foreach (var settings in Settings)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-3" Outlined="true">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                    <MudText Typo="Typo.subtitle2">@settings.Provider</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@settings.Channel</MudText>
+                </MudStack>
+                <MudSwitch T="bool" Color="Color.Error" Value="settings.Down" Label="Down"
+                           ValueChanged="@(value => SaveAsync(settings with { Down = value }))" />
+                <MudSwitch T="bool" Color="Color.Warning" Value="settings.DuplicateReceipts" Label="Duplicate receipts"
+                           ValueChanged="@(value => SaveAsync(settings with { DuplicateReceipts = value }))" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Error rate @Format.Share(settings.ErrorRate)</MudText>
+                <MudSlider T="double" Min="0" Max="1" Step="0.05" Value="settings.ErrorRate" Immediate="false"
+                           ValueChanged="@(value => SaveAsync(settings with { ErrorRate = value }))" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Latency @settings.LatencyMs ms</MudText>
+                <MudSlider T="int" Min="0" Max="3000" Step="100" Value="settings.LatencyMs" Immediate="false"
+                           ValueChanged="@(value => SaveAsync(settings with { LatencyMs = value }))" />
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+@code {
+    private List<ProviderChaos> Settings = [];
+
+    protected override async Task OnInitializedAsync() => Settings = [.. await Chaos.GetAsync(CancellationToken.None)];
+
+    // Each change goes straight to the providers service, because the point of the panel is to break
+    // a send that is already running.
+    private async Task SaveAsync(ProviderChaos settings)
+    {
+        var index = Settings.FindIndex(s => s.Provider == settings.Provider);
+        if (index >= 0)
+        {
+            Settings[index] = settings;
+        }
+        var saved = await Chaos.SetAsync(settings, CancellationToken.None);
+        if (saved is null)
+        {
+            Snackbar.Add($"Could not reach {settings.Provider}", Severity.Error);
+        }
+    }
+}

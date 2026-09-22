@@ -26,6 +26,9 @@ public abstract record Rule
     {
         Converters = { new JsonStringEnumConverter() },
         WriteIndented = true,
+        // A rule comes back from a jsonb column with its keys reordered, so "kind" is not always the
+        // first one. Without this the reader refuses a rule it wrote itself.
+        AllowOutOfOrderMetadataProperties = true,
     };
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);

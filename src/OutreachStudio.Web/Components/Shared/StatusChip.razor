@@ -1,0 +1,25 @@
+@using OutreachStudio.Engine.Campaigns
+
+<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@Tone(Status)" Class="ma-0">@Label(Status)</MudChip>
+
+@code {
+    [Parameter, EditorRequired] public CampaignStatus Status { get; set; }
+
+    public static string Label(CampaignStatus status) => status switch
+    {
+        CampaignStatus.InReview => "In review",
+        _ => status.ToString(),
+    };
+
+    private static Color Tone(CampaignStatus status) => status switch
+    {
+        CampaignStatus.Draft => Color.Default,
+        CampaignStatus.InReview => Color.Warning,
+        CampaignStatus.Approved => Color.Info,
+        CampaignStatus.Scheduled => Color.Primary,
+        CampaignStatus.Sending => Color.Primary,
+        CampaignStatus.Done => Color.Success,
+        CampaignStatus.Failed => Color.Error,
+        _ => Color.Default,
+    };
+}

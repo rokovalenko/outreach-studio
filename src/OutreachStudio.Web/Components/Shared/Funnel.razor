@@ -1,0 +1,43 @@
+@* Bars scaled to the first step, so each step reads as a share of the one it came from. *@
+
+@if (Compact)
+{
+    <div class="funnel">
+        @foreach (var (step, index) in Steps.Select((s, i) => (s, i)))
+        {
+            <div class="funnel-track">
+                <div class="funnel-fill step-@index" style="width: @Percent(step.Value)%"></div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="funnel">
+        @foreach (var (step, index) in Steps.Select((s, i) => (s, i)))
+        {
+            <div class="funnel-row">
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">@step.Label</MudText>
+                <div class="funnel-track" style="height: 14px">
+                    <div class="funnel-fill step-@index" style="width: @Percent(step.Value)%"></div>
+                </div>
+                <MudText Typo="Typo.body2" Class="num">@Format.Number(step.Value)</MudText>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    public sealed record Step(string Label, int Value);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Step> Steps { get; set; } = [];
+
+    /// <summary>Three thin bars with no labels, for a table cell.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    private double Percent(int value)
+    {
+        var top = Steps.Count == 0 ? 0 : Steps[0].Value;
+        return top <= 0 ? 0 : Math.Min(100, value * 100.0 / top);
+    }
+}

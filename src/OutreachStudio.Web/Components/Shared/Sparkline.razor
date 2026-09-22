@@ -1,0 +1,30 @@
+@* Inline SVG rather than a chart component, because one polyline over sixty buckets is the whole chart. *@
+
+<svg class="sparkline" viewBox="0 0 @Width @Height" preserveAspectRatio="none" role="img" aria-label="@Label">
+    <polyline fill="none" stroke="var(--mud-palette-primary)" stroke-width="1.5" vector-effect="non-scaling-stroke" points="@Points" />
+    <polygon fill="var(--mud-palette-primary)" fill-opacity="0.12" points="@Area" />
+</svg>
+
+@code {
+    private const int Width = 240;
+    private const int Height = 56;
+
+    [Parameter, EditorRequired] public IReadOnlyList<int> Values { get; set; } = [];
+
+    [Parameter] public string Label { get; set; } = "";
+
+    private string Points => string.Join(' ', Coordinates());
+
+    private string Area => Values.Count == 0 ? "" : $"0,{Height} {Points} {Width},{Height}";
+
+    private IEnumerable<string> Coordinates()
+    {
+        var max = Values.Count == 0 ? 0 : Values.Max();
+        var step = Values.Count <= 1 ? Width : (double)Width / (Values.Count - 1);
+        for (var i = 0; i < Values.Count; i++)
+        {
+            var y = max == 0 ? Height : Height - (Values[i] * (Height - 2.0) / max) - 1;
+            yield return $"{(i * step).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)},{y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}";
+        }
+    }
+}

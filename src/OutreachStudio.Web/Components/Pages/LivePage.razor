@@ -1,0 +1,293 @@
+@page "/campaigns/{Id:guid}/live"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject CampaignService Campaigns
+@inject DeliveryFeed Feed
+
+<PageTitle>@(Loaded ? Campaign.Name : "Live board")</PageTitle>
+
+@if (!Loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudStack Spacing="6">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <div>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                    <MudText Typo="Typo.h5">@Campaign.Name</MudText>
+                    <StatusChip Status="@Campaign.Status" />
+                </MudStack>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Live board, updated from the delivery_events channel</MudText>
+            </div>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined" Href="@($"/campaigns/{Id}")">Campaign</MudButton>
+                <MudButton Variant="Variant.Outlined" Href="@($"/campaigns/{Id}/results")">Results</MudButton>
+            </MudStack>
+        </MudStack>
+
+        @if (Campaign.Status is CampaignStatus.Scheduled && Campaign.ScheduledAt is not null)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Starts in @Format.Countdown(Campaign.ScheduledAt.Value - DateTimeOffset.UtcNow), at @Format.Utc(Campaign.ScheduledAt.Value)
+            </MudAlert>
+        }
+
+        <MudGrid Spacing="3">
+            @foreach (var status in Tiles)
+            {
+                <MudItem xs="6" sm="4" md="3" lg="2">
+                    <StatTile Label="@status.ToString()" Value="@Format.Number(Counts.GetValueOrDefault(status))" Tone="@Tone(status)" />
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="7">
+                <MudPaper Class="pa-4" Outlined="true">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                        <MudText Typo="Typo.subtitle2">Sends per second, last 60 s</MudText>
+                        <MudText Typo="Typo.h6" Class="num">@Throughput.Sum()</MudText>
+                    </MudStack>
+                    <Sparkline Values="@Throughput" Label="Sends per second over the last minute" />
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="5">
+                <MudPaper Class="pa-4" Outlined="true">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Providers, since this page opened</MudText>
+                    <MudSimpleTable Dense="true" Elevation="0">
+                        <tbody>
+                            @foreach (var provider in ProviderHealth.Providers)
+                            {
+                                var tally = ByProvider.GetValueOrDefault(provider);
+                                <tr>
+                                    <td>@provider</td>
+                                    <td class="num">@tally.Ok ok</td>
+                                    <td class="num">@tally.Failed failed</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Recent events</MudText>
+            @if (Stream.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">Nothing yet. Events appear here as workers send.</MudText>
+            }
+            else
+            {
+                <div class="mono">
+                    @foreach (var received in Stream)
+                    {
+                        <div class="event-row">
+                            <span class="mud-text-secondary">@Format.TimeUtc(received.At)</span>
+                            <span>user @received.UserId</span>
+                            <span>@received.Channel</span>
+                            <span>@received.Provider</span>
+                            <span>@received.Status</span>
+                            <span class="mud-text-secondary">@Reason(received)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+
+        <div>
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Chaos</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+                Every change hits the providers service straight away, so a send that is running feels it.
+            </MudText>
+            <ChaosPanel />
+        </div>
+    </MudStack>
+}
+
+@code {
+    private static readonly DeliveryStatus[] Tiles =
+        [DeliveryStatus.Queued, DeliveryStatus.Sent, DeliveryStatus.Delivered, DeliveryStatus.Opened,
+         DeliveryStatus.Failed, DeliveryStatus.Skipped, DeliveryStatus.Holdout];
+
+    [Parameter] public Guid Id { get; set; }
+
+    private Campaign Campaign = default!;
+    private bool Loaded;
+
+    // Written from the notification thread and read from the render thread, so both take the lock.
+    private readonly Lock gate = new();
+    private readonly Dictionary<DeliveryStatus, int> counts = [];
+    private readonly Dictionary<string, (int Ok, int Failed)> byProvider = new(StringComparer.Ordinal);
+    private readonly Queue<DeliveryEvent> stream = new();
+    private readonly Queue<DateTimeOffset> sends = new();
+    private CancellationTokenSource? ticker;
+
+    private Dictionary<DeliveryStatus, int> Counts = [];
+    private Dictionary<string, (int Ok, int Failed)> ByProvider = new(StringComparer.Ordinal);
+    private List<DeliveryEvent> Stream = [];
+    private List<int> Throughput = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Campaign = await Campaigns.LoadAsync(Id, CancellationToken.None);
+        var seeded = await Campaigns.CountsByStatusAsync(Id, CancellationToken.None);
+        lock (gate)
+        {
+            counts.Clear();
+            foreach (var (status, count) in seeded)
+            {
+                counts[status] = count;
+            }
+            stream.Clear();
+            foreach (var received in Feed.Recent(Id).TakeLast(30))
+            {
+                stream.Enqueue(received);
+            }
+        }
+        Publish();
+        Loaded = true;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+        Feed.Received += OnReceived;
+        ticker = new CancellationTokenSource();
+        _ = TickAsync(ticker.Token);
+    }
+
+    public void Dispose()
+    {
+        Feed.Received -= OnReceived;
+        ticker?.Cancel();
+        ticker?.Dispose();
+    }
+
+    // Events arrive faster than a screen can be read, so the board redraws once a second instead of
+    // once per event, and re-reads the counts from the database every ten seconds to stay honest.
+    private async Task TickAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        var ticks = 0;
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                // The database work runs on the renderer's dispatcher, because the context behind
+                // CampaignService belongs to this circuit and takes one operation at a time.
+                var refresh = ++ticks % 10 == 0;
+                await InvokeAsync(async () =>
+                {
+                    if (refresh)
+                    {
+                        var fresh = await Campaigns.CountsByStatusAsync(Id, ct);
+                        Campaign = await Campaigns.LoadAsync(Id, ct);
+                        lock (gate)
+                        {
+                            counts.Clear();
+                            foreach (var (status, count) in fresh)
+                            {
+                                counts[status] = count;
+                            }
+                        }
+                    }
+                    Publish();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page went away.
+        }
+    }
+
+    private void OnReceived(DeliveryEvent received)
+    {
+        if (received.CampaignId != Id)
+        {
+            return;
+        }
+        lock (gate)
+        {
+            var status = Enum.TryParse<DeliveryStatus>(received.Status, out var parsed) ? parsed : DeliveryStatus.Queued;
+            Bump(status, 1);
+            // The trigger only sends the new status, so the row it came from is the one status before it.
+            Bump(Previous(status), -1);
+            if (received.Provider is { Length: > 0 } provider)
+            {
+                var (ok, failed) = byProvider.GetValueOrDefault(provider);
+                byProvider[provider] = status is DeliveryStatus.Failed ? (ok, failed + 1) : (ok + 1, failed);
+            }
+            if (status is DeliveryStatus.Sent)
+            {
+                sends.Enqueue(received.At);
+            }
+            stream.Enqueue(received);
+            while (stream.Count > 30)
+            {
+                stream.Dequeue();
+            }
+        }
+    }
+
+    private void Bump(DeliveryStatus status, int delta)
+    {
+        if (status is DeliveryStatus.Claimed)
+        {
+            return;
+        }
+        counts[status] = Math.Max(0, counts.GetValueOrDefault(status) + delta);
+    }
+
+    private static DeliveryStatus Previous(DeliveryStatus status) => status switch
+    {
+        DeliveryStatus.Delivered => DeliveryStatus.Sent,
+        DeliveryStatus.Opened => DeliveryStatus.Delivered,
+        _ => DeliveryStatus.Queued,
+    };
+
+    /// <summary>Copies the counters the notification thread writes into the fields the markup reads.</summary>
+    private void Publish()
+    {
+        var now = DateTimeOffset.UtcNow;
+        lock (gate)
+        {
+            while (sends.Count > 0 && now - sends.Peek() > TimeSpan.FromSeconds(60))
+            {
+                sends.Dequeue();
+            }
+            Counts = new Dictionary<DeliveryStatus, int>(counts);
+            ByProvider = new Dictionary<string, (int, int)>(byProvider, StringComparer.Ordinal);
+            Stream = [.. stream.Reverse()];
+            var buckets = new int[60];
+            foreach (var at in sends)
+            {
+                var second = (int)(now - at).TotalSeconds;
+                if (second is >= 0 and < 60)
+                {
+                    buckets[59 - second]++;
+                }
+            }
+            Throughput = [.. buckets];
+        }
+    }
+
+    private static string Reason(DeliveryEvent received) =>
+        received.Error ?? (received.SkipReason is null or "None" ? "" : received.SkipReason);
+
+    private static Color Tone(DeliveryStatus status) => status switch
+    {
+        DeliveryStatus.Delivered => Color.Success,
+        DeliveryStatus.Opened => Color.Success,
+        DeliveryStatus.Failed => Color.Error,
+        DeliveryStatus.Skipped => Color.Warning,
+        _ => Color.Inherit,
+    };
+}

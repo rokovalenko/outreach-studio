@@ -1,0 +1,279 @@
+@page "/campaigns/{Id:guid}"
+@rendermode InteractiveServer
+@using OutreachStudio.Engine.Rules
+@inject CampaignService Campaigns
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@(Loaded ? Campaign.Name : "Campaign")</PageTitle>
+
+@if (!Loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudStack Spacing="6">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+            <div>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                    <MudText Typo="Typo.h5">@Campaign.Name</MudText>
+                    <StatusChip Status="@Campaign.Status" />
+                </MudStack>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Version @Campaign.CurrentVersion of @Campaign.Versions.Count, updated @Format.Utc(Campaign.UpdatedAt)
+                </MudText>
+            </div>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                @switch (Campaign.Status)
+                {
+                    case CampaignStatus.Draft:
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/campaigns/{Id}/edit")">Edit</MudButton>
+                        break;
+                    case CampaignStatus.InReview:
+                        <MudSelect T="string" @bind-Value="Reviewer" Label="Reviewer" Dense="true" Variant="Variant.Outlined" Style="min-width: 220px">
+                            @foreach (var name in Reviewers.All)
+                            {
+                                <MudSelectItem Value="@name">@name</MudSelectItem>
+                            }
+                        </MudSelect>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@Busy" OnClick="ApproveAsync">Approve</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Default" Disabled="@Busy" OnClick="RejectAsync">Reject</MudButton>
+                        break;
+                    case CampaignStatus.Approved:
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@Busy" OnClick="ScheduleAsync">Schedule now</MudButton>
+                        break;
+                    case CampaignStatus.Scheduled:
+                    case CampaignStatus.Sending:
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/campaigns/{Id}/live")">Open live board</MudButton>
+                        break;
+                    case CampaignStatus.Done:
+                    case CampaignStatus.Failed:
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/campaigns/{Id}/results")">Open results</MudButton>
+                        break;
+                }
+            </MudStack>
+        </MudStack>
+
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="4">
+                <StatTile Label="Audience estimate" Value="@Format.Number(Estimate.Matched)" Hint="@($"of {Format.Number(Estimate.Total)} users")" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <StatTile Label="Share of base" Value="@Format.Share(Estimate.Share)"
+                          Hint="@($"blast radius is {Format.Share(Campaigns.BlastRadiusShare)}")"
+                          Tone="@(Estimate.Share > Campaigns.BlastRadiusShare ? Color.Warning : Color.Inherit)" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <StatTile Label="Approvals required" Value="@Required.ToString()" Hint="@ApprovalHint" />
+            </MudItem>
+        </MudGrid>
+        @if (Estimate.Share > Campaigns.BlastRadiusShare)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true">
+                This rule reaches @Format.Share(Estimate.Share) of the user base, over the blast radius of
+                @Format.Share(Campaigns.BlastRadiusShare), so it needs two approvals.
+            </MudAlert>
+        }
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Current version</MudText>
+            <MudGrid Spacing="4">
+                <MudItem xs="12" md="5">
+                    <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary">Rule</MudText>
+                    <RuleText Rule="@Rule.FromJson(Version.RuleJson)" />
+                    <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary d-block mt-4">Schedule</MudText>
+                    <MudText Typo="Typo.body2">Starts @Format.Utc(Version.StartAt)</MudText>
+                    <MudText Typo="Typo.body2">@Version.PerMinute per minute</MudText>
+                    <MudText Typo="Typo.body2">Quiet hours @QuietHours</MudText>
+                    <MudText Typo="Typo.body2">Holdout @Format.Share(Version.HoldoutShare)</MudText>
+                </MudItem>
+                <MudItem xs="12" md="7">
+                    <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary">Channels</MudText>
+                    <MudText Typo="Typo.body2" Class="mb-3">@RuleWords.Describe(Version.Channels)</MudText>
+                    @if (Version.Channels.HasFlag(Channels.Push))
+                    {
+                        <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary">Push</MudText>
+                        <MudText Typo="Typo.body2"><b>@Version.PushTitle</b></MudText>
+                        <MudText Typo="Typo.body2" Class="message-body mb-3">@Version.PushBody</MudText>
+                    }
+                    @if (Version.Channels.HasFlag(Channels.Email))
+                    {
+                        <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary">Email</MudText>
+                        <MudText Typo="Typo.body2"><b>@Version.EmailSubject</b></MudText>
+                        <MudText Typo="Typo.body2" Class="message-body">@Version.EmailBody</MudText>
+                    }
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Approvals</MudText>
+            @if (Campaign.Approvals.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">None yet</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Elevation="0">
+                    <tbody>
+                        @foreach (var approval in Campaign.Approvals.OrderBy(a => a.At))
+                        {
+                            <tr>
+                                <td>Version @approval.Version</td>
+                                <td>@approval.Reviewer</td>
+                                <td class="mud-text-secondary">@Format.Utc(approval.At)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-4" Outlined="true">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mb-3">
+                <MudText Typo="Typo.subtitle2">Versions</MudText>
+                <MudSelect T="int" @bind-Value="LeftNumber" Label="From" Dense="true" Variant="Variant.Outlined" Style="min-width: 140px">
+                    @foreach (var version in Campaign.Versions.OrderBy(v => v.Number))
+                    {
+                        <MudSelectItem Value="@version.Number">Version @version.Number</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="int" @bind-Value="RightNumber" Label="To" Dense="true" Variant="Variant.Outlined" Style="min-width: 140px">
+                    @foreach (var version in Campaign.Versions.OrderBy(v => v.Number))
+                    {
+                        <MudSelectItem Value="@version.Number">Version @version.Number</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Version @LeftNumber written @Format.Utc(Left.CreatedAt), version @RightNumber written @Format.Utc(Right.CreatedAt)
+                </MudText>
+            </MudStack>
+
+            <MudSimpleTable Dense="true" Elevation="0">
+                <thead>
+                    <tr>
+                        <th style="width: 140px">Field</th>
+                        <th>Version @LeftNumber</th>
+                        <th>Version @RightNumber</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in VersionDiff.Fields(Campaign.Name, Left, Right))
+                    {
+                        <tr class="@(row.Changed ? "diff-changed" : "")">
+                            <td class="mud-text-secondary">@row.Field</td>
+                            <td class="message-body">@row.Left</td>
+                            <td class="message-body">@row.Right</td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            <MudText Typo="Typo.caption" Class="tile-label mud-text-secondary d-block mt-4 mb-1">Rule</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <div class="diff-json mono">
+                        @foreach (var line in Lines)
+                        {
+                            <div class="diff-line @(line.Changed ? "diff-changed" : "")">@line.Left</div>
+                        }
+                    </div>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <div class="diff-json mono">
+                        @foreach (var line in Lines)
+                        {
+                            <div class="diff-line @(line.Changed ? "diff-changed" : "")">@line.Right</div>
+                        }
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Campaign Campaign = default!;
+    private CampaignVersion Version = default!;
+    private AudienceEstimate Estimate = default!;
+    private bool Loaded;
+    private int Required = 1;
+    private int LeftNumber = 1;
+    private int RightNumber = 1;
+    private string Reviewer = Reviewers.All[0];
+    private bool Busy;
+
+    private CampaignVersion Left => CampaignService.Version(Campaign, LeftNumber);
+
+    private CampaignVersion Right => CampaignService.Version(Campaign, RightNumber);
+
+    private IReadOnlyList<DiffLine> Lines => VersionDiff.RuleLines(Left, Right);
+
+    private string QuietHours => Version.QuietStartHour == Version.QuietEndHour
+        ? "none"
+        : $"{Version.QuietStartHour:00}:00 to {Version.QuietEndHour:00}:00 local";
+
+    private string ApprovalHint =>
+        $"{Campaign.Approvals.Count(a => a.Version == Campaign.CurrentVersion)} recorded on this version";
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Campaign = await Campaigns.LoadAsync(Id, CancellationToken.None);
+        Version = CampaignService.Current(Campaign);
+        LeftNumber = Math.Max(1, Campaign.CurrentVersion - 1);
+        RightNumber = Campaign.CurrentVersion;
+        Estimate = await Campaigns.EstimateAsync(Version, CancellationToken.None);
+        Required = Campaigns.RequiredApprovals(Estimate);
+        Loaded = true;
+    }
+
+    private async Task ApproveAsync() => await RunAsync(async () =>
+    {
+        await Campaigns.ApproveAsync(Id, Reviewer, CancellationToken.None);
+        Snackbar.Add($"{Reviewer} approved this version", Severity.Success);
+    });
+
+    private async Task RejectAsync() => await RunAsync(async () =>
+    {
+        await Campaigns.RejectAsync(Id, CancellationToken.None);
+        Snackbar.Add("Sent back to draft", Severity.Normal);
+    });
+
+    private async Task ScheduleAsync()
+    {
+        Busy = true;
+        try
+        {
+            await Campaigns.ScheduleAsync(Id, CancellationToken.None);
+            Nav.NavigateTo($"/campaigns/{Id}/live");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            Busy = false;
+        }
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        Busy = true;
+        try
+        {
+            await action();
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+}

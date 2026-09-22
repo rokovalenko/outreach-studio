@@ -1,0 +1,78 @@
+@page "/"
+@rendermode InteractiveServer
+@inject CampaignService Campaigns
+@inject IDialogService Dialogs
+@inject NavigationManager Nav
+
+<PageTitle>Campaigns</PageTitle>
+
+<MudStack Spacing="6">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <div>
+            <MudText Typo="Typo.h5">Campaigns</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">Every campaign, newest first</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NewCampaignAsync">
+            New campaign
+        </MudButton>
+    </MudStack>
+
+    <div>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Provider health, last 15 minutes</MudText>
+        <ProviderHealthTiles />
+    </div>
+
+    <MudTable T="CampaignRow" Items="@(Rows ?? [])" Hover="true" Dense="true" Elevation="0" Outlined="true"
+              OnRowClick="Open" Loading="@(Rows is null)" LoadingProgressColor="Color.Primary">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="text-align:right">Audience</MudTh>
+            <MudTh Style="text-align:right">Sent</MudTh>
+            <MudTh Style="text-align:right">Delivered</MudTh>
+            <MudTh Style="text-align:right">Opened</MudTh>
+            <MudTh>Funnel</MudTh>
+            <MudTh>Updated</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name" Style="white-space: nowrap">@context.Name</MudTd>
+            <MudTd DataLabel="Status"><StatusChip Status="context.Status" /></MudTd>
+            <MudTd DataLabel="Audience" Class="num" Style="text-align:right">@(context.AudienceSize is null ? "" : Format.Number(context.AudienceSize.Value))</MudTd>
+            <MudTd DataLabel="Sent" Class="num" Style="text-align:right">@Format.Number(context.Sent)</MudTd>
+            <MudTd DataLabel="Delivered" Class="num" Style="text-align:right">@Format.Number(context.Delivered)</MudTd>
+            <MudTd DataLabel="Opened" Class="num" Style="text-align:right">@Format.Number(context.Opened)</MudTd>
+            <MudTd DataLabel="Funnel">
+                <Funnel Compact="true" Steps="Sends(context)" />
+            </MudTd>
+            <MudTd DataLabel="Updated" Class="mud-text-secondary">@Format.Utc(context.UpdatedAt)</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudStack>
+
+@code {
+    private IReadOnlyList<CampaignRow>? Rows;
+
+    private static IReadOnlyList<Funnel.Step> Sends(CampaignRow row) =>
+        [new("Sent", row.Sent), new("Delivered", row.Delivered), new("Opened", row.Opened)];
+
+    protected override async Task OnInitializedAsync() => Rows = await Campaigns.ListAsync(CancellationToken.None);
+
+    private void Open(TableRowClickEventArgs<CampaignRow> args)
+    {
+        if (args.Item is not null)
+        {
+            Nav.NavigateTo($"/campaigns/{args.Item.Id}");
+        }
+    }
+
+    private async Task NewCampaignAsync()
+    {
+        var dialog = await Dialogs.ShowAsync<NewCampaignDialog>("New campaign");
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: string name })
+        {
+            var id = await Campaigns.CreateDraftAsync(name, CancellationToken.None);
+            Nav.NavigateTo($"/campaigns/{id}/edit");
+        }
+    }
+}
