@@ -19,6 +19,9 @@ The repo was built in one working session by the author directing Claude Code, w
 - The seeder marked holdout rows only for finished campaigns, so the campaign that starts sending on first boot showed a holdout of zero. Caught on the live board.
 - The live board counted provider successes from delivery notifications, which carry only the provider that finally succeeded, so a primary outage showed zero failures on the primary. Fixed by reading the attempt rows instead.
 - A rule stored in a `jsonb` column comes back with its keys reordered, and the polymorphic deserialiser refused a tree whose `kind` was not first. The web agent found it and fixed the JSON options.
+- The audience snapshot was JSON. Nobody measured it until the browser QA pass, where it took twenty seconds to parse in WebAssembly. The lead agent replaced it with a binary format in the engine and recorded the numbers in ADR-002.
+- Three breakdown charts sat side by side in a panel too narrow for them, so every bar was five pixels wide. Caught in a screenshot, not in any test.
+- The seeded drafts had a start time later in the day, so scheduling one in the demo queued everything for noon and the live board stayed still. Caught while recording the gif.
 
 ## What stayed with the person
 

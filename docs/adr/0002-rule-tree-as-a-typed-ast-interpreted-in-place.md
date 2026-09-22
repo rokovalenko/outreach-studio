@@ -15,12 +15,12 @@ Attribute values are strings in the tree. `UserSchema` is the one list of attrib
 
 `RuleEvaluator` interprets the tree. `Matches` is the fast path used for counting, `Explain` returns a `ClauseResult` tree with each clause's actual value, which is the match explanation panel. Event clauses read from `AudienceUser.Events`, a dictionary of event type to sorted unix timestamps, so a count in a window is two binary searches. Those arrays are built once when the snapshot is loaded, not per evaluation.
 
-The audience snapshot the browser downloads is the whole user base, not a sample. With 20,000 users and about 20 events each, the JSON is a few megabytes before Brotli. The measured download size and the evaluation time for the seeded base are recorded in the README once measured, and the evaluation chip in the editor shows both live.
+The audience snapshot the browser downloads is the whole user base, not a sample. It goes over the wire in a binary format from the engine (`AudienceSnapshotFormat`, a `BinaryWriter` stream with delta coded event timestamps) rather than JSON. Measured on the seeded base of 20,000 users and about 400,000 events: JSON was 12.5 MB, 4.9 MB with Brotli, and took the WebAssembly interpreter about 20 seconds to parse. The binary stream is 3.4 MB, 2.5 MB with Brotli, and loads in about 1.5 seconds. One evaluation over all users takes about 250 ms in the browser and 15 ms on the server. The evaluation chip in the editor shows both numbers live.
 
 ## Consequences
 
 - Adding an attribute is one line in `UserSchema` plus a column. Adding an operator is a case in the evaluator and a label in the builder.
-- Evaluation allocates nothing on the fast path except the enumerator, so twenty thousand users evaluate in a few milliseconds in the browser.
+- Evaluation allocates nothing on the fast path except the enumerator, so twenty thousand users evaluate in a quarter of a second in the interpreted browser runtime and in a few milliseconds on the server.
 - Values are strings, so a rule can be syntactically valid JSON and semantically wrong. The validator is the guard and it runs before save, before estimate and before schedule.
 - The tree has no variables, functions or cross-user aggregates. A rule like "users whose points are above the median" cannot be written. That is a deliberate limit for v1.
 
@@ -30,3 +30,4 @@ The audience snapshot the browser downloads is the whole user base, not a sample
 - A string DSL with a parser. More to build, more to explain in the UI, and the builder would generate strings that it then has to parse back.
 - Translating the tree to SQL for the server side. Tempting for the send, but then the browser and the server evaluate different code and the same-assembly claim in ADR-001 is gone. At twenty thousand users the in-memory evaluation is fast enough.
 - Sampling the user base in the browser. Smaller download, but the count becomes an estimate with error bars and the sample of matched users may be empty for narrow rules.
+- JSON for the snapshot. It was the first version. The download was fine, the parse in the interpreter was not, and ahead of time compilation of the client would have cost more build time than a fifty line binary format.
